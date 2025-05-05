@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # Serviço backend FastAPI
+  # FastAPI backend service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: licitacao-hub-api
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "9000:8000"
+    volumes:
+      # Mount directories for development
+      - ./app:/app/app
+      - ./uploads:/app/uploads
+      - ./tests:/app/tests
+    env_file:
+      - .env
+    environment:
+      # Set URLs with service names for connection within Docker
+      - DATABASE_URL=postgresql+psycopg://postgres:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+      - REDIS_URL=redis://redis:6379/0
+      - DOCKER_ENV=true
+      - TEST_DATABASE_URL=postgresql+psycopg://postgres:${DATABASE_PASSWORD}@db:5432/test_db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Serviço PostgreSQL
+  # PostgreSQL service
+  db:
+    image: postgres:16-alpine
+    container_name: licitacao-hub-db
+    restart: always
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_DB=${DATABASE_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Serviço Redis
+  # Redis service
+  redis:
+    image: redis:7-alpine
+    container_name: licitacao-hub-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Serviço pgAdmin para administração do PostgreSQL
+  # pgAdmin service for PostgreSQL administration
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: licitacao-hub-pgadmin
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    healthcheck:
+      test: ["CMD", "wget", "-O", "-", "http://localhost:80/misc/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  pgadmin_data:
+
