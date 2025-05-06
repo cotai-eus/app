@@ -1,9 +1,7 @@
 import asyncio
 import os
-from typing import AsyncGenerator, Generator
-
-import pytest
-import pytest_asyncio
+from typing import AsyncGenerator, Generator, Dict
+from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -11,13 +9,14 @@ from sqlalchemy.pool import NullPool
 
 # --- Importações da Aplicação ---
 try:
-    from app.main import app
+    from app.main import app as application
     from app.core.config import settings
     from app.db.base import Base
     from app.db.session import get_db
     from app.schemas.user import UserCreate
     from app.crud.crud_user import user as crud_user
     from app.models.user import User
+    from app.core.security import create_access_token, get_password_hash
 except ImportError as e:
     print(f"Erro ao importar módulos da aplicação em conftest.py: {e}")
     print("Verifique se os erros de importação internos da aplicação foram corrigidos.")
@@ -25,56 +24,12 @@ except ImportError as e:
 
 # --- Configuração do Banco de Dados de Teste ---
 
-# Use psycopg (v3) driver explicitly for async connections
-DB_DRIVER = "postgresql+psycopg"
-DEFAULT_TEST_DB_URL = f"{DB_DRIVER}://postgres:postgres@db:5432/test_db"
+# Test database URL - ensure this is different from your main database
+TEST_DATABASE_URL = settings.TEST_DATABASE_URL or "postgresql+psycopg://postgres:postgres@db:5432/test_db"
 
-def get_test_database_url() -> str:
-    """Constructs the test database URL using the psycopg driver."""
-    env_url = os.getenv("TEST_DATABASE_URL")
-    if env_url:
-        # Ensure the environment variable URL uses the correct driver if it's a postgres URL
-        if env_url.startswith("postgresql://"):
-            return env_url.replace("postgresql://", f"{DB_DRIVER}://", 1)
-        elif env_url.startswith("postgresql+psycopg://"):
-             return env_url.replace("postgresql+psycopg://", f"{DB_DRIVER}://", 1)
-        return env_url # Assume it's correctly formatted if not standard postgres
-
-    if settings.DATABASE_URL:
-        # Convert PostgresDsn to string and ensure it uses the psycopg driver
-        db_url_str = str(settings.DATABASE_URL)
-        if db_url_str.startswith("postgresql://"):
-             base_url = db_url_str.replace("postgresql://", f"{DB_DRIVER}://", 1)
-        elif db_url_str.startswith("postgresql+psycopg://"):
-             base_url = db_url_str.replace("postgresql+psycopg://", f"{DB_DRIVER}://", 1)
-        elif db_url_str.startswith(f"{DB_DRIVER}://"):
-             base_url = db_url_str
-        else:
-             # Fallback if the format is unexpected, might need adjustment
-             print(f"Warning: Unexpected DATABASE_URL format in settings: {db_url_str}. Using default test DB URL.")
-             return DEFAULT_TEST_DB_URL
-
-        # Replace the database name for the test database
-        # This assumes the database name is the last part after the final '/'
-        parts = base_url.split('/')
-        if len(parts) > 3 and settings.DATABASE_NAME: # Check if DB name likely exists in URL
-            parts[-1] = f"{settings.DATABASE_NAME}_test"
-            return "/".join(parts)
-        else:
-             # If DB name replacement is tricky, fallback or adjust logic
-             print(f"Warning: Could not reliably replace database name in {base_url}. Using default test DB URL.")
-             return DEFAULT_TEST_DB_URL
-    else:
-        return DEFAULT_TEST_DB_URL
-
-TEST_DATABASE_URL = get_test_database_url()
-print(f"Using test database URL: {TEST_DATABASE_URL}") # For debugging
-
-# Create the async engine with the explicitly defined test URL
-test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
-TestingSessionLocal = sessionmaker(
-    autocommit=False, autoflush=False, bind=test_engine, class_=AsyncSession, expire_on_commit=False
-)
+# Create async engine for tests
+engine = create_async_engine(TEST_DATABASE_URL, echo=True)
+TestingSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # --- Fixtures ---
 
@@ -85,91 +40,70 @@ def event_loop() -> Generator:
     yield loop
     loop.close()
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def prepare_database() -> AsyncGenerator[None, None]:
-    """Cria e limpa as tabelas do banco de dados de teste."""
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+# Fixture for getting the application
+@pytest.fixture
+def app() -> FastAPI:
+    return application
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session(prepare_database: None) -> AsyncGenerator[AsyncSession, None]:
-    """Fornece uma sessão de banco de dados transacional para cada teste."""
+# Database session fixture
+@pytest.fixture
+async def db() -> AsyncSession:
+    async with engine.begin() as conn:
+        # Create tables if they don't exist
+        await conn.run_sync(Base.metadata.create_all)
+    
     async with TestingSessionLocal() as session:
         yield session
-        # Rollback is handled by session context manager
+        # Clean up after test
+        await session.rollback()
 
-@pytest_asyncio.fixture(scope="function", autouse=True)
-def override_get_db(db_session: AsyncSession) -> Generator[None, None, None]:
-    """Sobrescreve a dependência get_db para usar a sessão de teste."""
-    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        yield db_session
-
-    app.dependency_overrides[get_db] = _override_get_db
+# Override the get_db dependency
+@pytest.fixture
+async def override_get_db(db: AsyncSession) -> Generator:
+    # Override the get_db dependency to use the test database
+    async def _override_get_db():
+        try:
+            yield db
+        finally:
+            await db.close()
+    
+    application.dependency_overrides[get_db] = _override_get_db
     yield
-    app.dependency_overrides.pop(get_db, None)
+    del application.dependency_overrides[get_db]
 
-
-@pytest_asyncio.fixture(scope="function")
-async def client(override_get_db: None) -> AsyncGenerator[AsyncClient, None]:
-    """Fornece um cliente HTTP assíncrono para interagir com a API."""
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        yield ac
+# Test client
+@pytest.fixture
+async def client(app: FastAPI, override_get_db) -> AsyncClient:
+    async with AsyncClient(
+        app=app,
+        base_url="http://test"
+    ) as client:
+        yield client
 
 # --- Fixtures de Usuário e Autenticação ---
 
-@pytest_asyncio.fixture(scope="function")
-async def test_user(db_session: AsyncSession) -> User:
-    """Cria um usuário de teste padrão."""
-    email = "testuser@example.com"
-    password = "testpassword123"
-    username = "testuser"
-    first_name="Test"
-    last_name="User"
-
-    user = await crud_user.get_by_username(db=db_session, username=username)
-    if not user:
-        user_in = UserCreate(
-            email=email,
-            username=username,
-            password=password,
-            first_name=first_name,
-            last_name=last_name
-        )
-        user = await crud_user.create(db=db_session, obj_in=user_in)
+# Create a test user
+@pytest.fixture
+async def test_user(db: AsyncSession, override_get_db) -> User:
+    # Create a user for testing
+    user = User(
+        email="test@example.com",
+        username="testuser",
+        hashed_password=get_password_hash("password123"),
+        is_active=True
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
     return user
 
-@pytest_asyncio.fixture(scope="function")
-async def superuser(db_session: AsyncSession) -> User:
-    """Cria um superusuário de teste."""
-    email = settings.FIRST_SUPERUSER_EMAIL
-    password = settings.FIRST_SUPERUSER_PASSWORD
-    username = "admin_test"
-    first_name="Admin"
-    last_name="Test"
-
-    user = await crud_user.get_by_username(db=db_session, username=username)
-    if not user:
-        user_in = UserCreate(
-            email=email,
-            username=username,
-            password=password,
-            first_name=first_name,
-            last_name=last_name,
-            is_superuser=True # Set directly on creation if possible/desired
-        )
-        user = await crud_user.create(db=db_session, obj_in=user_in)
-        # Ensure is_superuser is set if not done during creation or if user existed
-        if not user.is_superuser:
-             user = await crud_user.update(db=db_session, db_obj=user, obj_in={"is_superuser": True})
-    elif not user.is_superuser:
-         user = await crud_user.update(db=db_session, db_obj=user, obj_in={"is_superuser": True})
-
-    return user
-
+# Create authentication headers for testing
+@pytest.fixture
+async def auth_headers(test_user: User) -> Dict[str, str]:
+    access_token = create_access_token(
+        data={"sub": test_user.username}
+    )
+    return {"Authorization": f"Bearer {access_token}"}
 
 @pytest_asyncio.fixture(scope="function")
 async def user_token_headers(client: AsyncClient, test_user: User) -> dict[str, str]:
@@ -188,5 +122,3 @@ async def superuser_token_headers(client: AsyncClient, superuser: User) -> dict[
     response.raise_for_status()
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
-
-# ... (restante das fixtures, se houver) ...

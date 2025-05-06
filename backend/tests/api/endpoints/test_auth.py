@@ -8,13 +8,16 @@ from app.schemas import UserPublic # Importa o schema para comparar
 
 pytestmark = pytest.mark.asyncio
 
+# Update to correct endpoint
+AUTH_LOGIN_ENDPOINT = f"{settings.API_V1_STR}/auth/login"
+
 async def test_login_success(client: AsyncClient, test_user: User):
     """ Testa o login bem-sucedido com username e senha. """
     login_data = {
         "username": test_user.username,
         "password": "password123", # Senha definida no fixture test_user
     }
-    response = await client.post(f"{settings.API_V1_STR}/auth/token", data=login_data)
+    response = await client.post(AUTH_LOGIN_ENDPOINT, json=login_data)  # Changed to json from data
     assert response.status_code == status.HTTP_200_OK
     token = response.json()
     assert "access_token" in token
@@ -26,7 +29,7 @@ async def test_login_success_email(client: AsyncClient, test_user: User):
         "username": test_user.email, # Usa email no campo username
         "password": "password123",
     }
-    response = await client.post(f"{settings.API_V1_STR}/auth/token", data=login_data)
+    response = await client.post(AUTH_LOGIN_ENDPOINT, json=login_data)  # Changed to json from data
     assert response.status_code == status.HTTP_200_OK
     token = response.json()
     assert "access_token" in token
@@ -38,7 +41,7 @@ async def test_login_wrong_password(client: AsyncClient, test_user: User):
         "username": test_user.username,
         "password": "wrongpassword",
     }
-    response = await client.post(f"{settings.API_V1_STR}/auth/token", data=login_data)
+    response = await client.post(AUTH_LOGIN_ENDPOINT, json=login_data)  # Changed to json from data
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert "detail" in response.json()
     assert response.json()["detail"] == "Usuário ou senha incorretos"
@@ -49,7 +52,7 @@ async def test_login_user_not_found(client: AsyncClient):
         "username": "nonexistentuser",
         "password": "password123",
     }
-    response = await client.post(f"{settings.API_V1_STR}/auth/token", data=login_data)
+    response = await client.post(AUTH_LOGIN_ENDPOINT, json=login_data)  # Changed to json from data
     assert response.status_code == status.HTTP_401_UNAUTHORIZED # Ainda retorna 401 por segurança
     assert "detail" in response.json()
     assert response.json()["detail"] == "Usuário ou senha incorretos"

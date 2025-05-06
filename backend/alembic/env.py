@@ -75,38 +75,42 @@ def do_run_migrations(connection) -> None:
         context.run_migrations()
 
 
-async def run_migrations_async() -> None:
-    """
-    # Executa migrações de forma assíncrona.
-    # Run migrations asynchronously.
-    """
-    # Substitui a URL para formato assíncrono
-    # Replace URL for async format
-    connectable = AsyncEngine(
-        create_async_engine(str(settings.DATABASE_URL))
-    )
-
+async def run_async_migrations(connectable):
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
-    await connectable.dispose()
-
 
 def run_migrations_online() -> None:
+    """Run migrations in 'online' mode.
+    
+    In this scenario we need to create an Engine and associate a
+    connection with the context.
     """
-    # Executa migrações online usando AsyncEngine
-    # Run migrations online using AsyncEngine
-    """
-    connectable = AsyncEngine(
-        engine_from_config(
-            config.get_section(config.config_ini_section),
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-            future=True,
-        )
-    )
+    # Modify this part to correctly use the async driver
+    from sqlalchemy.ext.asyncio import create_async_engine
+    
+    # Make sure to use the correct driver prefix in the URL
+    # For psycopg with async support, we need to use 'postgresql+psycopg_async://'
+    url = config.get_main_option("sqlalchemy.url")
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg_async://")
+    
+    connectable = create_async_engine(url)
 
-    asyncio.run(run_migrations_async())
+    # Use an async context manager
+    async def do_run_migrations(connection):
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            # ...other configuration options...
+        )
+        
+        with context.begin_transaction():
+            context.run_migrations()
+
+    # Run migrations in an async context
+    import asyncio
+    asyncio.run(run_async_migrations(connectable))
 
 
 if context.is_offline_mode():

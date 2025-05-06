@@ -6,7 +6,8 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.deploy
+    # Use Dockerfile.deploy for production
     container_name: licitacao-hub-api
     restart: always
     depends_on:

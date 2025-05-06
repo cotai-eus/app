@@ -5,38 +5,36 @@ services:
       context: .
       dockerfile: Dockerfile.test
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     environment:
+      - DATABASE_URL=postgresql+psycopg_async://postgres:postgres@db:5432/licitacao_hub
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - TESTING=true
       - POETRY_VIRTUALENVS_IN_PROJECT=true
       - POETRY_CACHE_DIR=/tmp/poetry_cache
-#      - DATABASE_URL=postgresql+psycopg://postgres:postgres@db:5432/licitacao_hub
-      - TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@db:5432/test_db
+      # Other environment variables needed for your app
     volumes:
-      - .:/app  # Monta o código atual no container
-      - poetry_cache_volume:/tmp/poetry_cache
+      - ./:/app
+      - poetry_cache:/tmp/poetry_cache
     working_dir: /app
     user: root
-    command: >
-      sh -c "python -m pip install --upgrade pip &&
-             poetry config virtualenvs.in-project true &&
-             poetry install --no-interaction --no-ansi &&
-             python -m pytest tests/"
+    # Let the dockerfile's entrypoint and CMD handle running pytest
   
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: test_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_test:/var/lib/postgresql/data/
 
 volumes:
-  postgres_data:
-  poetry_cache_volume:
+  postgres_data_test:
+  poetry_cache:
