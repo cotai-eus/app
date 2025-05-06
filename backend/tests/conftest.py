@@ -27,7 +27,7 @@ except ImportError as e:
 
 # Use psycopg (v3) driver explicitly for async connections
 DB_DRIVER = "postgresql+psycopg"
-DEFAULT_TEST_DB_URL = f"{DB_DRIVER}://postgres:postgres@localhost:5432/licitacao_hub_test"
+DEFAULT_TEST_DB_URL = f"{DB_DRIVER}://postgres:postgres@db:5432/test_db"
 
 def get_test_database_url() -> str:
     """Constructs the test database URL using the psycopg driver."""

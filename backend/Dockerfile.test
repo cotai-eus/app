@@ -3,10 +3,8 @@
 # Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
-# Adicione estas linhas antes do RUN poetry install
-ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-ENV POETRY_CACHE_DIR=/tmp/poetry_cache
-RUN mkdir -p /app/.venv && chmod -R 777 /app/.venv
+# Set environment variables
+RUN addgroup --system app && adduser --system --group app
 
 # Set the working directory in the container
 WORKDIR /app
@@ -14,16 +12,27 @@ WORKDIR /app
 # Install Poetry
 RUN pip install poetry
 
+# Don't create the poetry cache directory in the Dockerfile
+# as it will be a volume mount
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+ENV POETRY_CACHE_DIR=/tmp/poetry_cache
+
 # Copy project files
 COPY pyproject.toml poetry.lock* ./
 
-# Install dependencies (including dev dependencies)
-# Use --no-root if you install project code later via COPY . .
-# Omit --only dev if pytest is a main dependency, or install all groups needed for tests
-RUN poetry install --no-interaction --no-ansi
+# Don't run poetry install here as we'll do it in the compose command
+# to ensure we have the mounted volume set up first
 
 # Copy the rest of the application code
 COPY . .
 
-# Command to run tests (adjust as needed)
+# Add an entrypoint script for better initialization
+RUN chmod +x test-entrypoint.sh
+
+# IMPORTANT: DO NOT try to remove /tmp/poetry_cache here
+# as it will be a mounted volume in docker-compose
+
+# Add entrypoint script
+
+ENTRYPOINT ["./test-entrypoint.sh"]
 CMD ["poetry", "run", "pytest"]
