@@ -19,6 +19,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
+    networks:
+      - app-network
 
   # Serviço backend FastAPI
   # FastAPI backend service
@@ -120,4 +122,8 @@ volumes:
   postgres_data:
   redis_data:
   pgadmin_data:
+
+networks:
+  app-network:
+    driver: bridge
 
