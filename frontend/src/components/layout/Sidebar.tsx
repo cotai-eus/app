@@ -1,122 +1,162 @@
 
-import React from "react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft } from "lucide-react";
-import {
-  Bell,
-  Calendar,
-  LayoutDashboard,
-  MessageSquare,
-  FilePlus,
-  Columns,
-} from "lucide-react";
+import { FC } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LayoutDashboard, KanbanSquare, FileText, Mail, Calendar, LogOut, User, Settings } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
+import { Button } from '@/components/ui/button';
+import { SheetContent } from '@/components/ui/sheet';
 
-interface SidebarProps {
-  setSidebarOpen: (open: boolean) => void;
+interface NavItemProps {
+  href: string;
+  label: string;
+  icon: JSX.Element;
+  isActive: boolean;
+  onClick?: () => void;
 }
 
-const navigationItems = [
-  {
-    name: "Dashboard",
-    icon: <LayoutDashboard className="mr-2 h-5 w-5" />,
-    href: "/app/dashboard",
-  },
-  {
-    name: "Acompanhamento",
-    icon: <Columns className="mr-2 h-5 w-5" />,
-    href: "/app/acompanhamento",
-  },
-  {
-    name: "Nova Licitação",
-    icon: <FilePlus className="mr-2 h-5 w-5" />,
-    href: "/app/nova-licitacao",
-  },
-  {
-    name: "Mensagens",
-    icon: <MessageSquare className="mr-2 h-5 w-5" />,
-    href: "/app/mensagens",
-  },
-  {
-    name: "Calendário",
-    icon: <Calendar className="mr-2 h-5 w-5" />,
-    href: "/app/calendario",
-  },
-  {
-    name: "Notificações",
-    icon: <Bell className="mr-2 h-5 w-5" />,
-    href: "/app/notificacoes",
-  },
-];
+interface SidebarProps {
+  isMobile?: boolean;
+}
 
-// Mock recents contacts data
-const recentContacts = [
-  { id: 1, name: "João Silva", unread: 2 },
-  { id: 2, name: "Maria Souza", unread: 0 },
-  { id: 3, name: "Carlos Mendes", unread: 1 },
-];
-
-export function Sidebar({ setSidebarOpen }: SidebarProps) {
+const NavItem: FC<NavItemProps> = ({ href, label, icon, isActive, onClick }) => {
   return (
-    <aside className="w-60 h-screen flex flex-col border-r border-border bg-background">
-      <div className="h-16 px-4 border-b border-border flex items-center justify-between">
-        <div className="font-semibold">CotAi</div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSidebarOpen(false)}
-          className="hover-glow lg:hidden"
-          aria-label="Esconder barra lateral"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-      </div>
-      
-      <div className="flex-1 py-6 overflow-y-auto">
-        <nav className="space-y-1 px-2">
-          {navigationItems.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              className="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              {item.icon}
-              {item.name}
-            </Link>
-          ))}
+    <Link
+      to={href}
+      className="w-full block"
+      onClick={onClick}
+    >
+      <Button
+        variant={isActive ? 'default' : 'ghost'}
+        className={cn(
+          "w-full justify-start gap-3 mb-1 rounded-lg",
+          isActive && "bg-sidebar-primary text-sidebar-primary-foreground"
+        )}
+      >
+        {icon}
+        <span>{label}</span>
+        {isActive && (
+          <motion.div
+            layoutId="sidebar-indicator"
+            className="absolute right-2 w-1 h-4 bg-background rounded-full"
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          />
+        )}
+      </Button>
+    </Link>
+  );
+};
+
+/**
+ * Sidebar component for navigation
+ * @param {boolean} isMobile - Whether the sidebar is rendered on mobile
+ */
+export const Sidebar: FC<SidebarProps> = ({ isMobile = false }) => {
+  const location = useLocation();
+  const { logout } = useAuthStore();
+  const { setSidebarOpen } = useUIStore();
+  
+  const isActive = (path: string) => location.pathname === path;
+  
+  const handleItemClick = () => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
+  
+  const handleLogout = () => {
+    logout();
+    handleItemClick();
+  };
+
+  const Content = (
+    <div className="flex flex-col h-full">
+      <div className="p-4">
+        <h2 className="text-2xl font-bold mb-6 text-sidebar-foreground">Portal Licitações</h2>
+        
+        <nav className="space-y-1">
+          <NavItem
+            href="/app/dashboard"
+            label="Dashboard"
+            icon={<LayoutDashboard size={18} />}
+            isActive={isActive('/app/dashboard')}
+            onClick={handleItemClick}
+          />
+          <NavItem
+            href="/app/kanban"
+            label="Kanban"
+            icon={<KanbanSquare size={18} />}
+            isActive={isActive('/app/kanban')}
+            onClick={handleItemClick}
+          />
+          <NavItem
+            href="/app/editais"
+            label="Editais"
+            icon={<FileText size={18} />}
+            isActive={isActive('/app/editais')}
+            onClick={handleItemClick}
+          />
+          <NavItem
+            href="/app/mensagens"
+            label="Mensagens"
+            icon={<Mail size={18} />}
+            isActive={isActive('/app/mensagens')}
+            onClick={handleItemClick}
+          />
+          <NavItem
+            href="/app/calendario"
+            label="Calendário"
+            icon={<Calendar size={18} />}
+            isActive={isActive('/app/calendario')}
+            onClick={handleItemClick}
+          />
+          <NavItem
+            href="/app/perfil"
+            label="Perfil"
+            icon={<User size={18} />}
+            isActive={isActive('/app/perfil')}
+            onClick={handleItemClick}
+          />
+          <NavItem
+            href="/app/configuracoes"
+            label="Configurações"
+            icon={<Settings size={18} />}
+            isActive={isActive('/app/configuracoes')}
+            onClick={handleItemClick}
+          />
         </nav>
       </div>
       
-      {/* Bottom Section 1: Recent Contacts */}
-      <div className="px-4 py-2 border-t border-border">
-        <h3 className="text-xs font-semibold text-muted-foreground mb-2">Últimos Contatos</h3>
-        <div className="space-y-1">
-          {recentContacts.map((contact) => (
-            <Link
-              key={contact.id}
-              to={`/app/mensagens/${contact.id}`}
-              className="flex items-center justify-between px-2 py-1.5 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              <span>{contact.name}</span>
-              {contact.unread > 0 && (
-                <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
-                  {contact.unread}
-                </span>
-              )}
-            </Link>
-          ))}
-        </div>
-      </div>
-      
-      {/* Bottom Section 2: New Bid Button */}
-      <div className="p-4 border-t border-border">
-        <Button asChild className="w-full" variant="default">
-          <Link to="/app/nova-licitacao">
-            <FilePlus className="mr-2 h-4 w-4" />
-            Nova Licitação
-          </Link>
+      <div className="mt-auto p-4">
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={handleLogout}
+        >
+          <LogOut size={18} />
+          <span>Sair</span>
         </Button>
       </div>
-    </aside>
+    </div>
   );
-}
+  
+  if (isMobile) {
+    return <SheetContent side="left" className="bg-sidebar p-0 w-[280px]">{Content}</SheetContent>;
+  }
+  
+  return (
+    <AnimatePresence>
+      <motion.aside
+        initial={{ width: 0, opacity: 0 }}
+        animate={{ width: 280, opacity: 1 }}
+        exit={{ width: 0, opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        className="hidden md:block h-screen border-r border-border bg-sidebar sticky top-0 overflow-y-auto overflow-x-hidden w-[280px]"
+      >
+        {Content}
+      </motion.aside>
+    </AnimatePresence>
+  );
+};
