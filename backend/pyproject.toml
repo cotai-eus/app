@@ -11,7 +11,7 @@ start = "app.main:start"
 cli = "app.core.cli:app"
 
 [tool.poetry.dependencies]
-python = "3.12.3"
+python = ">=3.12,<3.13"  # Or "^3.12" for more flexibility
 fastapi = "^0.110.0"
 uvicorn = {extras = ["standard"], version = "^0.27.0"}
 sqlalchemy = {extras = ["asyncio"], version = "^2.0.27"}

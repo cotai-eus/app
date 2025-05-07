@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -274,12 +275,12 @@ const MensagensPage = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="container mx-auto py-6 h-full"
+      className="container mx-auto py-4 sm:py-6 h-full px-2 sm:px-4 md:px-6"
     >
       <div className="bg-card border border-border rounded-lg flex flex-col md:flex-row h-[calc(100vh-160px)] overflow-hidden">
         {/* Contacts Sidebar */}
-        <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-border flex flex-col">
-          <div className="p-4 border-b border-border">
+        <div className="w-full md:w-[280px] lg:w-[320px] border-b md:border-b-0 md:border-r border-border flex flex-col">
+          <div className="p-3 sm:p-4 border-b border-border">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -298,10 +299,17 @@ const MensagensPage = () => {
                 className={`flex items-center p-3 gap-3 cursor-pointer hover:bg-accent transition-colors relative ${selectedContactId === contact.id ? 'bg-accent' : ''}`}
                 onClick={() => setSelectedContactId(contact.id)}
               >
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={contact.avatar || ""} alt={contact.name} />
-                  <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage 
+                      src={contact.avatar || "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=150&h=150&q=80"} 
+                      alt={contact.name} 
+                    />
+                    <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background ${contact.online ? 'bg-green-500' : 'bg-muted'}`} />
+                </div>
+                
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-medium truncate">{contact.name}</span>
@@ -319,8 +327,6 @@ const MensagensPage = () => {
                     {contact.unread}
                   </span>
                 )}
-                
-                <div className={`absolute bottom-0 left-12 h-2 w-2 rounded-full ${contact.online ? 'bg-green-500' : 'bg-muted'}`} />
               </div>
             ))}
             {filteredContacts.length === 0 && (
@@ -337,12 +343,18 @@ const MensagensPage = () => {
           {selectedContact ? (
             <>
               {/* Chat Header */}
-              <div className="p-4 border-b border-border flex items-center justify-between">
+              <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={selectedContact.avatar || ""} alt={selectedContact.name} />
-                    <AvatarFallback>{getInitials(selectedContact.name)}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage 
+                        src={selectedContact.avatar || "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=150&h=150&q=80"} 
+                        alt={selectedContact.name} 
+                      />
+                      <AvatarFallback>{getInitials(selectedContact.name)}</AvatarFallback>
+                    </Avatar>
+                    <div className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background ${selectedContact.online ? 'bg-green-500' : 'bg-muted'}`} />
+                  </div>
                   <div>
                     <h3 className="font-medium">{selectedContact.name}</h3>
                     <p className="text-xs text-muted-foreground">
@@ -367,20 +379,20 @@ const MensagensPage = () => {
               </div>
               
               {/* Messages */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-4">
+              <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-4">
                 {messages.map((message) => (
                   <div 
                     key={message.id}
                     className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div 
-                      className={`max-w-[70%] rounded-lg p-3 ${
+                      className={`max-w-[85%] sm:max-w-[75%] rounded-lg p-3 ${
                         message.sender === 'user' 
                           ? 'bg-primary text-primary-foreground' 
                           : 'bg-muted'
                       }`}
                     >
-                      <p>{message.content}</p>
+                      <p className="break-words">{message.content}</p>
                       
                       {/* Display attachments if any */}
                       {message.attachments?.map((attachment, index) => (
@@ -388,7 +400,7 @@ const MensagensPage = () => {
                           key={index}
                           className="mt-2 p-2 rounded bg-background/10 flex items-center gap-2"
                         >
-                          <FileText className="h-4 w-4" />
+                          <FileText className="h-4 w-4 flex-shrink-0" />
                           <span className="text-sm truncate">{attachment.name}</span>
                         </div>
                       ))}
@@ -402,67 +414,103 @@ const MensagensPage = () => {
               </div>
               
               {/* Message Input */}
-              <div className="p-4 border-t border-border">
+              <div className="p-3 sm:p-4 border-t border-border">
                 <div className="flex items-center gap-2">
-                  <Popover open={isAttachmentMenuOpen} onOpenChange={setIsAttachmentMenuOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Paperclip className="h-5 w-5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-48" align="start">
-                      <div className="grid gap-1">
-                        <Button variant="ghost" className="justify-start" onClick={() => {
-                          setIsCalendarDialogOpen(true);
-                          setIsAttachmentMenuOpen(false);
-                        }}>
+                  <div className="hidden sm:flex gap-1">
+                    <Popover open={isAttachmentMenuOpen} onOpenChange={setIsAttachmentMenuOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <Paperclip className="h-5 w-5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48" align="start">
+                        <div className="grid gap-1">
+                          <Button variant="ghost" className="justify-start" onClick={() => {
+                            setIsCalendarDialogOpen(true);
+                            setIsAttachmentMenuOpen(false);
+                          }}>
+                            <Calendar className="h-4 w-4 mr-2" />
+                            Agendar evento
+                          </Button>
+                          
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" className="justify-start" onClick={() => setIsAttachmentMenuOpen(false)}>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Anexar licitação
+                            </Button>
+                          </DialogTrigger>
+                          
+                          <Button variant="ghost" className="justify-start">
+                            <Paperclip className="h-4 w-4 mr-2" />
+                            Anexar arquivo
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    
+                    <Popover open={isMentionsMenuOpen} onOpenChange={setIsMentionsMenuOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <AtSign className="h-5 w-5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" align="start">
+                        <h4 className="text-sm font-medium mb-2">Mencionar usuário</h4>
+                        <div className="space-y-1">
+                          {teamMembers.map(member => (
+                            <Button
+                              key={member.id}
+                              variant="ghost"
+                              className="w-full justify-start text-left"
+                              onClick={() => handleAddMention(member.id, member.name)}
+                            >
+                              <Avatar className="h-6 w-6 mr-2">
+                                <AvatarImage 
+                                  src={`https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=150&h=150&q=80`} 
+                                  alt={member.name} 
+                                />
+                                <AvatarFallback className="text-xs">{getInitials(member.name)}</AvatarFallback>
+                              </Avatar>
+                              <div className="overflow-hidden">
+                                <p className="truncate">{member.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{member.role}</p>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="flex sm:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-9 w-9">
+                          <Paperclip className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuItem onClick={() => setIsCalendarDialogOpen(true)}>
                           <Calendar className="h-4 w-4 mr-2" />
                           Agendar evento
-                        </Button>
-                        
+                        </DropdownMenuItem>
                         <DialogTrigger asChild>
-                          <Button variant="ghost" className="justify-start" onClick={() => setIsAttachmentMenuOpen(false)}>
+                          <DropdownMenuItem>
                             <FileText className="h-4 w-4 mr-2" />
                             Anexar licitação
-                          </Button>
+                          </DropdownMenuItem>
                         </DialogTrigger>
-                        
-                        <Button variant="ghost" className="justify-start">
+                        <DropdownMenuItem>
                           <Paperclip className="h-4 w-4 mr-2" />
                           Anexar arquivo
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  
-                  <Popover open={isMentionsMenuOpen} onOpenChange={setIsMentionsMenuOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <AtSign className="h-5 w-5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64" align="start">
-                      <h4 className="text-sm font-medium mb-2">Mencionar usuário</h4>
-                      <div className="space-y-1">
-                        {teamMembers.map(member => (
-                          <Button
-                            key={member.id}
-                            variant="ghost"
-                            className="w-full justify-start text-left"
-                            onClick={() => handleAddMention(member.id, member.name)}
-                          >
-                            <Avatar className="h-6 w-6 mr-2">
-                              <AvatarFallback className="text-xs">{getInitials(member.name)}</AvatarFallback>
-                            </Avatar>
-                            <div className="overflow-hidden">
-                              <p className="truncate">{member.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{member.role}</p>
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setIsMentionsMenuOpen(true)}>
+                          <AtSign className="h-4 w-4 mr-2" />
+                          Mencionar usuário
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                   
                   <Input
                     placeholder="Digite sua mensagem..."
@@ -479,7 +527,7 @@ const MensagensPage = () => {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center p-4">
               <div className="text-center text-muted-foreground">
                 <User className="h-12 w-12 mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">Nenhuma conversa selecionada</h3>
@@ -492,7 +540,7 @@ const MensagensPage = () => {
       
       {/* Calendar Event Dialog */}
       <Dialog open={isCalendarDialogOpen} onOpenChange={setIsCalendarDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md mx-auto">
           <DialogHeader>
             <DialogTitle>Agendar Evento</DialogTitle>
             <DialogDescription>
@@ -532,6 +580,10 @@ const MensagensPage = () => {
                 {teamMembers.slice(0, 2).map(member => (
                   <div key={member.id} className="flex items-center bg-accent rounded-full px-2 py-1">
                     <Avatar className="h-5 w-5 mr-1">
+                      <AvatarImage 
+                        src={`https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=150&h=150&q=80`} 
+                        alt={member.name}
+                      />
                       <AvatarFallback className="text-[10px]">{getInitials(member.name)}</AvatarFallback>
                     </Avatar>
                     <span className="text-xs">{member.name}</span>
@@ -560,7 +612,7 @@ const MensagensPage = () => {
       
       {/* Attach Bid Dialog */}
       <Dialog>
-        <DialogContent>
+        <DialogContent className="max-w-md mx-auto">
           <DialogHeader>
             <DialogTitle>Anexar Licitação</DialogTitle>
             <DialogDescription>

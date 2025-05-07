@@ -1,11 +1,30 @@
 version: '3.8'
 
 services:
+  # Serviço Frontend React/Vue/Angular
+  # Frontend service
+  frontend:
+    build:
+      context: ../frontend  # Adjusted path to point to frontend directory
+      dockerfile: Dockerfile.frontend
+    container_name: licitacao-hub-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "-O", "-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
   # Serviço backend FastAPI
   # FastAPI backend service
   backend:
     build:
-      context: .
+      context: .  # Current directory is already backend
       dockerfile: Dockerfile.deploy
     # Use Dockerfile.deploy for production
     container_name: licitacao-hub-api
@@ -19,11 +38,11 @@ services:
       - "9000:8000"
     volumes:
       # Mount directories for development
-      - ./app:/app/app
+      - ./app:/app/app  # Adjusted paths
       - ./uploads:/app/uploads
       - ./tests:/app/tests
     env_file:
-      - .env
+      - ./.env  # Fixed path to .env file
     environment:
       # Set URLs with service names for connection within Docker
       - DATABASE_URL=postgresql+psycopg://postgres:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
@@ -46,7 +65,7 @@ services:
     ports:
       - "5432:5432"
     env_file:
-      - .env
+      - ./.env  # Fixed path to .env file
     environment:
       - POSTGRES_USER=${DATABASE_USER}
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD}

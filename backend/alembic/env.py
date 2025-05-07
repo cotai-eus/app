@@ -35,7 +35,10 @@ target_metadata = Base.metadata
 
 # Substitui a URL de conexão com a do .env
 # Replace the connection URL with the one from .env
-config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
+db_url = str(settings.DATABASE_URL)
+if hasattr(settings, 'DATABASE_DRIVER') and settings.DATABASE_DRIVER:
+    db_url = db_url.replace("postgresql://", f"postgresql+{settings.DATABASE_DRIVER}://")
+config.set_main_option("sqlalchemy.url", db_url)
 
 
 def run_migrations_offline() -> None:
@@ -86,30 +89,9 @@ def run_migrations_online() -> None:
     In this scenario we need to create an Engine and associate a
     connection with the context.
     """
-    # Modify this part to correctly use the async driver
-    from sqlalchemy.ext.asyncio import create_async_engine
-    
-    # Make sure to use the correct driver prefix in the URL
-    # For psycopg with async support, we need to use 'postgresql+psycopg_async://'
-    url = config.get_main_option("sqlalchemy.url")
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+psycopg_async://")
-    
-    connectable = create_async_engine(url)
-
-    # Use an async context manager
-    async def do_run_migrations(connection):
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            # ...other configuration options...
-        )
-        
-        with context.begin_transaction():
-            context.run_migrations()
+    connectable = create_async_engine(config.get_main_option("sqlalchemy.url"))
 
     # Run migrations in an async context
-    import asyncio
     asyncio.run(run_async_migrations(connectable))
 
 

@@ -1,5 +1,7 @@
 import asyncio
 import os
+import pytest
+import pytest_asyncio
 from typing import AsyncGenerator, Generator, Dict
 from fastapi import FastAPI
 from httpx import AsyncClient
@@ -25,7 +27,7 @@ except ImportError as e:
 # --- Configuração do Banco de Dados de Teste ---
 
 # Test database URL - ensure this is different from your main database
-TEST_DATABASE_URL = settings.TEST_DATABASE_URL or "postgresql+psycopg://postgres:postgres@db:5432/test_db"
+TEST_DATABASE_URL = "postgresql+psycopg://postgres:postgres@db:5432/test_db"
 
 # Create async engine for tests
 engine = create_async_engine(TEST_DATABASE_URL, echo=True)

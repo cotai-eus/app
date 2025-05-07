@@ -1,7 +1,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ interface LoginFormValues {
 }
 
 const LoginPage = () => {
+  const navigate = useNavigate();
   const form = useForm<LoginFormValues>({
     defaultValues: {
       email: "",
@@ -42,6 +43,9 @@ const LoginPage = () => {
   const onSubmit = (data: LoginFormValues) => {
     console.log(data);
     // Authentication logic would go here
+    
+    // For now, just navigate to the app dashboard
+    navigate("/app/dashboard");
   };
 
   return (

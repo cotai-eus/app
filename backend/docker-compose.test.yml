@@ -7,7 +7,10 @@ services:
     depends_on:
       - db
     environment:
-      - DATABASE_URL=postgresql+psycopg_async://postgres:postgres@db:5432/licitacao_hub
+      # Modified to use a standard scheme that Pydantic can validate
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/test_db
+      # Add a separate variable for the driver
+      - DATABASE_DRIVER=psycopg_async
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - TESTING=true
@@ -26,7 +29,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      - POSTGRES_DB=test_db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

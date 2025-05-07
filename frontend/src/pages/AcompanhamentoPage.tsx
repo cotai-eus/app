@@ -236,23 +236,23 @@ const AcompanhamentoPage = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="container mx-auto py-6 h-full"
+      className="container mx-auto py-4 sm:py-6 h-full px-2 sm:px-4 md:px-6"
     >
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Acompanhamento</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Acompanhamento</h1>
           <p className="text-muted-foreground mt-1">
             Acompanhe o status das suas licitações em andamento
           </p>
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-          <div className="relative">
+          <div className="relative flex-grow sm:flex-grow-0">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Pesquisar licitação..."
-              className="pl-8 w-full sm:w-[250px]"
+              className="pl-8 w-full"
               value={searchTerm}
               onChange={handleSearch}
             />
@@ -260,13 +260,13 @@ const AcompanhamentoPage = () => {
           
           <Button variant="outline" className="flex-shrink-0">
             <Filter className="h-4 w-4 mr-2" />
-            Filtros
+            <span>Filtros</span>
           </Button>
           
           <Button asChild className="flex-shrink-0">
             <Link to="/app/nova-licitacao">
               <Plus className="h-4 w-4 mr-2" />
-              Nova Licitação
+              <span>Nova Licitação</span>
             </Link>
           </Button>
         </div>
@@ -274,9 +274,9 @@ const AcompanhamentoPage = () => {
       
       {/* Kanban Board */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 pb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 pb-6 overflow-x-auto">
           {columns.map((column) => (
-            <div key={column.id} className="w-full min-w-[200px]">
+            <div key={column.id} className="w-full min-w-[250px] sm:min-w-[200px]">
               <div className="bg-muted rounded-t-lg px-3 py-2 font-medium border-b border-border">
                 <div className="flex items-center justify-between">
                   <span>{column.title}</span>
@@ -307,9 +307,9 @@ const AcompanhamentoPage = () => {
                                 opacity: snapshot.isDragging ? 0.8 : 1
                               }}
                             >
-                              <Card className={`hover-scale ${snapshot.isDragging ? 'bg-accent/5' : ''}`}>
+                              <Card className={`hover:shadow-md transition-shadow ${snapshot.isDragging ? 'bg-accent/5' : ''}`}>
                                 <CardHeader className="p-3 pb-1">
-                                  <CardTitle className="text-sm font-medium">
+                                  <CardTitle className="text-sm font-medium line-clamp-2">
                                     {bid.title}
                                   </CardTitle>
                                 </CardHeader>
@@ -319,11 +319,11 @@ const AcompanhamentoPage = () => {
                                     <span>#{bid.number}</span>
                                   </div>
                                   <div className="flex items-center gap-1 flex-wrap">
-                                    <Calendar className="h-3 w-3" />
-                                    <span>
+                                    <Calendar className="h-3 w-3 flex-shrink-0" />
+                                    <span className="whitespace-nowrap">
                                       {format(bid.deadline, "dd/MM/yyyy", { locale: ptBR })}
                                     </span>
-                                    <Badge variant={getBadgeVariant(daysRemaining)}>
+                                    <Badge variant={getBadgeVariant(daysRemaining)} className="ml-auto">
                                       {daysRemaining < 0
                                         ? `${Math.abs(daysRemaining)}d atrasado`
                                         : `${daysRemaining}d restantes`}

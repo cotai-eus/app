@@ -42,8 +42,10 @@ class Settings(BaseSettings):
     DATABASE_PASSWORD: str
     DATABASE_HOST: str
     DATABASE_PORT: str
-    DATABASE_NAME: str = "db_name"  # Example
-    DATABASE_URL: PostgresDsn = "postgresql+psycopg://user:password@host:port/db_name"  # Use postgresql+psycopg
+    DATABASE_NAME: str = "test_db"  # Example
+    DATABASE_URL: str
+    TEST_DATABASE_URL: Optional[str] = None
+    DATABASE_DRIVER: str = "psycopg_async"
 
     @field_validator("DATABASE_URL", mode="before")
     def assemble_db_connection(cls, v: Optional[str], info: Dict[str, Any]) -> Any:
@@ -58,6 +60,14 @@ class Settings(BaseSettings):
             port=info.data.get("DATABASE_PORT", "5432"),
             path=f"/{info.data.get('DATABASE_NAME', 'app')}",
         )
+
+    @property
+    def database_url_with_driver(self) -> str:
+        """Returns the database URL with the appropriate driver."""
+        url = str(self.DATABASE_URL)
+        if url.startswith("postgresql://") and self.DATABASE_DRIVER:
+            return url.replace("postgresql://", f"postgresql+{self.DATABASE_DRIVER}://")
+        return url
 
     # Redis
     REDIS_HOST: str = "redis"

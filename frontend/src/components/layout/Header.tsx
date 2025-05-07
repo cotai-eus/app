@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { ThemeToggle } from "../theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Bell, User } from "lucide-react";
+import { ChevronLeft, ChevronRight, Bell, User, Info } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,9 +16,10 @@ import { useLocation, Link } from "react-router-dom";
 interface HeaderProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  isDemo?: boolean;
 }
 
-export function Header({ sidebarOpen, setSidebarOpen }: HeaderProps) {
+export function Header({ sidebarOpen, setSidebarOpen, isDemo = false }: HeaderProps) {
   const location = useLocation();
   const [hasNotifications, setHasNotifications] = useState(true);
 
@@ -36,6 +37,9 @@ export function Header({ sidebarOpen, setSidebarOpen }: HeaderProps) {
     return "CotAi Licitação Hub";
   };
 
+  // Get the correct route prefix based on demo mode
+  const getRoutePrefix = () => isDemo ? "/demo" : "/app";
+
   return (
     <header className="h-16 px-4 border-b border-border flex items-center justify-between bg-background/80 backdrop-blur-sm">
       <div className="flex items-center">
@@ -52,10 +56,22 @@ export function Header({ sidebarOpen, setSidebarOpen }: HeaderProps) {
             <ChevronRight className="h-5 w-5" />
           )}
         </Button>
-        <h1 className="text-xl font-semibold">{getPageTitle()}</h1>
+        <h1 className="text-xl font-semibold">
+          {isDemo ? "Demo: " : ""}{getPageTitle()}
+        </h1>
       </div>
       
       <div className="flex items-center gap-4">
+        {/* Login Button for Demo Mode */}
+        {isDemo && (
+          <Button variant="outline" size="sm" asChild className="mr-2">
+            <Link to="/login">
+              <User className="mr-2 h-4 w-4" />
+              Login
+            </Link>
+          </Button>
+        )}
+        
         {/* Notification Bell */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -81,7 +97,7 @@ export function Header({ sidebarOpen, setSidebarOpen }: HeaderProps) {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="justify-center font-medium">
-              <a href="/app/notificacoes">Ver todas as notificações</a>
+              <Link to={`${getRoutePrefix()}/notificacoes`}>Ver todas as notificações</Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -97,13 +113,19 @@ export function Header({ sidebarOpen, setSidebarOpen }: HeaderProps) {
             <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/app/perfil">Perfil</Link>
+              <Link to={`${getRoutePrefix()}/perfil`}>Perfil</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/app/configuracoes">Configurações</Link>
+              <Link to={`${getRoutePrefix()}/configuracoes`}>Configurações</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Sair</DropdownMenuItem>
+            {isDemo ? (
+              <DropdownMenuItem asChild>
+                <Link to="/login">Fazer Login</Link>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem>Sair</DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         
