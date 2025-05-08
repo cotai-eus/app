@@ -1,9 +1,8 @@
-
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.example.com';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -52,11 +51,18 @@ export default api;
 
 // API endpoints
 export const authAPI = {
-  login: (data: { email: string; password: string }) => api.post('/auth/login', data),
-  register: (data: { name: string; email: string; password: string }) => api.post('/auth/register', data),
-  forgotPassword: (data: { email: string }) => api.post('/auth/forgot-password', data),
-  resetPassword: (data: { token: string; password: string }) => api.post('/auth/reset-password', data),
-  me: () => api.get('/auth/me'),
+  login: (data: { email: string; password: string }) => 
+    api.post('/api/v1/auth/token', new URLSearchParams({
+      username: data.email, // API OAuth2 espera 'username' mesmo que seja email
+      password: data.password
+    }), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }
+    }),
+  register: (data: { username: string; email: string; password: string; full_name: string }) => 
+    api.post('/api/v1/auth/signup', data),
+  me: () => api.get('/api/v1/users/me'),
 };
 
 export const licitacoesAPI = {
