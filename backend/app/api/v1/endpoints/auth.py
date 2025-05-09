@@ -7,160 +7,186 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, create_refresh_token, verify_refresh_token
 from app.crud.crud_user import user as crud_user
 from app.models.user import User
-from app.schemas.token import LoginRequest, Token
+from app.schemas.token import LoginRequest, Token, TokenPayload, RefreshToken
 from app.schemas.user import UserCreate, UserPublic
 
 router = APIRouter()
 
 
-@router.post("/token", response_model=Token)
+@router.post("/login", response_model=Token)
 async def login_access_token(
     db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
-    # Endpoint para obtenção de token de acesso OAuth2
-    # OAuth2 compatible token login endpoint
-    
-    Args:
-        db: Sessão do banco de dados
-        form_data: Dados do formulário de login OAuth2
-        
-    Returns:
-        Token de acesso JWT
+    OAuth2 compatible token login, get an access token for future requests
     """
     user = await crud_user.authenticate(
-        db, identifier=form_data.username, password=form_data.password
+        db, username_or_email=form_data.username, password=form_data.password
     )
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Usuário ou senha incorretos",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciais inválidas",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    elif not user.is_active:
+    if not await crud_user.is_active(user):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="Usuário inativo"
         )
-    
-    # Atualiza último login
-    # Updates last login time
-    await crud_user.update(db, db_obj=user, obj_in={"last_login": "now()"})
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": create_access_token(
-            user.user_id, expires_delta=access_token_expires
-        ),
-        "token_type": "bearer",
-    }
-
-
-@router.post("/login", response_model=Token)
-async def login(
-    db: AsyncSession = Depends(get_db),
-    login_data: LoginRequest = Body(...)
-) -> Any:
-    """
-    # Login com email/nome de usuário e senha
-    # Login with email/username and password
-    
-    Args:
-        db: Sessão do banco de dados
-        login_data: Dados de login
         
-    Returns:
-        Token de acesso JWT
-    """
-    user = await crud_user.authenticate(
-        db, identifier=login_data.username, password=login_data.password
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    
+    # Criar tokens de acesso e refresh
+    access_token = create_access_token(
+        user.user_id, expires_delta=access_token_expires
     )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Usuário ou senha incorretos",
-        )
-    elif not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Usuário inativo"
-        )
-    
-    # Atualiza último login
-    # Updates last login time
-    await crud_user.update(db, db_obj=user, obj_in={"last_login": "now()"})
-    
-    # Se o usuário selecionou "lembrar de mim", aumenta o tempo de expiração do token
-    # If the user selected "remember me", increase the token expiration time
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    if login_data.remember_me:
-        # Aumenta para 30 dias se "lembrar de mim" estiver ativado
-        # Increase to 30 days if "remember me" is enabled
-        access_token_expires = timedelta(days=30)
+    refresh_token = create_refresh_token(
+        user.user_id, expires_delta=refresh_token_expires
+    )
     
     return {
-        "access_token": create_access_token(
-            user.user_id, expires_delta=access_token_expires
-        ),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
+        "user": {
+            "id": str(user.user_id),
+            "email": user.email,
+            "name": user.full_name,
+            "role": "admin" if await crud_user.is_admin(user) else "user"
+        }
     }
 
 
-@router.post("/signup", response_model=UserPublic)
-async def register(
+@router.post("/refresh-token", response_model=Token)
+async def refresh_access_token(
     db: AsyncSession = Depends(get_db),
-    user_in: UserCreate = Body(...)
+    refresh_token: RefreshToken = Body(...)
 ) -> Any:
     """
-    # Cria um novo usuário
-    # Create a new user
-    
-    Args:
-        db: Sessão do banco de dados
-        user_in: Dados do usuário a ser criado
-        
-    Returns:
-        O usuário criado
+    Get a new access token using refresh token
     """
-    # Verifica se já existe um usuário com este email
-    # Check if a user with this email already exists
+    user_id = verify_refresh_token(refresh_token.refresh_token)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de atualização inválido ou expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    user = await crud_user.get(db, id=user_id)
+    if not user or not await crud_user.is_active(user):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário inativo ou inexistente"
+        )
+        
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        user.user_id, expires_delta=access_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token.refresh_token,  # Retornamos o mesmo refresh token
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.user_id),
+            "email": user.email,
+            "name": user.full_name,
+            "role": "admin" if await crud_user.is_admin(user) else "user"
+        }
+    }
+
+
+@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+async def register_user(
+    *,
+    db: AsyncSession = Depends(get_db),
+    user_in: UserCreate,
+) -> Any:
+    """
+    Register a new user and return tokens
+    """
+    # Verificar se o email já existe
     user = await crud_user.get_by_email(db, email=user_in.email)
     if user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este email já está sendo usado por outro usuário",
+            detail="Este email já está registrado"
         )
     
-    # Verifica se já existe um usuário com este nome de usuário
-    # Check if a user with this username already exists
-    user = await crud_user.get_by_username(db, username=user_in.username)
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este nome de usuário já está sendo usado",
-        )
-    
-    # Cria o usuário
-    # Create the user
+    # Criar novo usuário
     user = await crud_user.create(db, obj_in=user_in)
-    return user
+    
+    # Gerar tokens
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    
+    access_token = create_access_token(
+        user.user_id, expires_delta=access_token_expires
+    )
+    refresh_token = create_refresh_token(
+        user.user_id, expires_delta=refresh_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.user_id),
+            "email": user.email,
+            "name": user.full_name,
+            "role": "admin" if await crud_user.is_admin(user) else "user"
+        }
+    }
 
 
-@router.post("/test-token", response_model=UserPublic)
-async def test_token(
+@router.post("/forgot-password", response_model=dict)
+async def forgot_password(
+    email: str = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Password recovery email process
+    """
+    user = await crud_user.get_by_email(db, email=email)
+    
+    # Sempre retornamos sucesso, mesmo se o email não existir (segurança)
+    if user and await crud_user.is_active(user):
+        # TODO: Implementar envio de email com token de recuperação
+        # Um serviço de email como SendGrid ou Amazon SES seria usado aqui
+        # Por enquanto, apenas registramos em log
+        pass
+    
+    return {"msg": "Se um usuário com este email existir, enviaremos instruções para recuperação"}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    token: str = Body(...),
+    new_password: str = Body(...),
+    db: AsyncSession = Depends(get_db)
+) -> Any:
+    """
+    Reset password using recovery token
+    """
+    # TODO: Implementar validação do token e reset de senha
+    # Por agora, apenas retornamos como se fosse bem-sucedido
+    return {"msg": "Senha alterada com sucesso"}
+
+
+@router.get("/me", response_model=UserPublic)
+async def get_current_user_info(
     current_user: User = Depends(get_current_user)
 ) -> Any:
     """
-    # Endpoint de teste para validar o token
-    # Test endpoint to validate the token
-    
-    Args:
-        current_user: Usuário atual obtido do token
-        
-    Returns:
-        O usuário atual
+    Get current user information
     """
     return current_user

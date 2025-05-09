@@ -1,284 +1,227 @@
 from typing import Any, List, Optional
 from uuid import UUID
-
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.core.security import verify_password
-from app.crud.base import CRUDBase
 from app.models.bid import Bid
 from app.models.user import User
-from app.schemas.bid import BidCreate, BidPublic, BidSignRequest, BidStatusUpdate, BidUpdate
+from app.schemas.bid import BidCreate, BidPublic, BidUpdate, BidStatusUpdate, BidDashboardStats
 
 router = APIRouter()
 
-# Criar instância CRUD para licitações
-# Create CRUD instance for bids
-crud_bid = CRUDBase(Bid)
-
-
-@router.get("", response_model=List[BidPublic])
-async def read_bids(
-    db: AsyncSession = Depends(get_db),
-    status: Optional[str] = Query(None, description="Filtrar por status"),
-    skip: int = 0,
-    limit: int = 100,
-    current_user: User = Depends(get_current_user),
-) -> Any:
-    """
-    # Obter licitações do usuário atual com possibilidade de filtro por status
-    # Get bids of the current user with possible status filtering
-    
-    Args:
-        db: Sessão do banco de dados
-        status: Status opcional para filtrar
-        skip: Número de registros para pular
-        limit: Número máximo de registros para retornar
-        current_user: Usuário atual obtido do token
-        
-    Returns:
-        Lista de licitações
-    """
-    if status:
-        # Filtrar por status
-        # Filter by status
-        stmt = select(Bid).where(
-            (Bid.user_id == current_user.user_id) & (Bid.status == status)
-        ).offset(skip).limit(limit)
-    else:
-        # Retornar todas as licitações do usuário
-        # Return all bids of the user
-        stmt = select(Bid).where(
-            Bid.user_id == current_user.user_id
-        ).offset(skip).limit(limit)
-    
-    result = await db.execute(stmt)
-    return result.scalars().all()
-
-
-@router.post("", response_model=BidPublic)
+@router.post("", response_model=BidPublic, status_code=status.HTTP_201_CREATED)
 async def create_bid(
+    *,
     db: AsyncSession = Depends(get_db),
-    bid_in: BidCreate = Body(...),
+    bid_in: BidCreate,
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     # Criar uma nova licitação
     # Create a new bid
-    
-    Args:
-        db: Sessão do banco de dados
-        bid_in: Dados da licitação a ser criada
-        current_user: Usuário atual obtido do token
-        
-    Returns:
-        A licitação criada
     """
-    # Gerar código interno se não fornecido
-    # Generate internal code if not provided
-    if not bid_in.internal_code:
-        # Contar licitações existentes e gerar código no formato ED-XXXX
-        # Count existing bids and generate code in format ED-XXXX
-        stmt = select(Bid).where(Bid.user_id == current_user.user_id)
-        result = await db.execute(stmt)
-        count = len(result.scalars().all())
-        bid_in.internal_code = f"ED-{count+1:04d}"
-    
-    # Criar objeto de licitação incluindo o ID do usuário atual
-    # Create bid object including the current user ID
-    bid_data = bid_in.model_dump()
-    bid_data["user_id"] = current_user.user_id
-    
     # Criar a licitação
-    # Create the bid
-    db_bid = Bid(**bid_data)
-    db.add(db_bid)
+    bid = Bid(**bid_in.model_dump(), user_id=current_user.user_id)
+    db.add(bid)
     await db.commit()
-    await db.refresh(db_bid)
-    return db_bid
+    await db.refresh(bid)
+    
+    return bid
 
+@router.get("", response_model=List[BidPublic])
+async def read_bids(
+    db: AsyncSession = Depends(get_db),
+    status: Optional[str] = Query(None, description="Filtrar por status da licitação"),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Obter licitações
+    # Get bids
+    """
+    # Construir consulta
+    query = select(Bid)
+    
+    # Filtrar por status se fornecido
+    if status:
+        query = query.where(Bid.status == status)
+    
+    # Aplicar paginação
+    query = query.offset(skip).limit(limit).order_by(Bid.deadline_date)
+    
+    # Executar consulta
+    result = await db.execute(query)
+    bids = result.scalars().all()
+    
+    return bids
+
+@router.get("/dashboard-stats", response_model=BidDashboardStats)
+async def get_dashboard_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Obter estatísticas para o dashboard
+    # Get dashboard statistics
+    """
+    # Consulta para contar licitações ativas
+    active_query = select(func.count()).where(Bid.status.in_(['recebidos', 'analisados', 'enviados']))
+    active_result = await db.execute(active_query)
+    active_count = active_result.scalar_one()
+    
+    # Consulta para contar editais publicados
+    published_query = select(func.count()).select_from(Bid)
+    published_result = await db.execute(published_query)
+    published_count = published_result.scalar_one()
+    
+    # Consulta para contar prazos próximos (próximos 7 dias)
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
+    upcoming_deadline = today + timedelta(days=7)
+    
+    deadlines_query = select(func.count()).where(
+        (Bid.deadline_date >= today) & 
+        (Bid.deadline_date <= upcoming_deadline)
+    )
+    deadlines_result = await db.execute(deadlines_query)
+    deadlines_count = deadlines_result.scalar_one()
+    
+    # Cálculo da taxa de sucesso
+    success_query = select(func.count()).where(Bid.status == 'ganho')
+    success_result = await db.execute(success_query)
+    success_count = success_result.scalar_one()
+    
+    closed_query = select(func.count()).where(Bid.status.in_(['ganho', 'perdido']))
+    closed_result = await db.execute(closed_query)
+    closed_count = closed_result.scalar_one()
+    
+    success_rate = round((success_count / closed_count * 100) if closed_count > 0 else 0)
+    
+    return {
+        "active_bids": active_count,
+        "published_notices": published_count,
+        "upcoming_deadlines": deadlines_count,
+        "success_rate": success_rate
+    }
 
 @router.get("/{bid_id}", response_model=BidPublic)
 async def read_bid(
-    bid_id: UUID,
+    *,
     db: AsyncSession = Depends(get_db),
+    bid_id: UUID,
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
-    # Obter detalhes de uma licitação específica
-    # Get details of a specific bid
-    
-    Args:
-        bid_id: ID da licitação
-        db: Sessão do banco de dados
-        current_user: Usuário atual obtido do token
-        
-    Returns:
-        Detalhes da licitação solicitada
+    # Obter uma licitação específica
+    # Get specific bid
     """
-    bid = await crud_bid.get(db, id=bid_id)
+    # Buscar licitação
+    bid = await db.get(Bid, bid_id)
+    
     if not bid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Licitação não encontrada",
-        )
-    
-    # Verificar se a licitação pertence ao usuário atual
-    # Check if the bid belongs to the current user
-    if bid.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso não autorizado a esta licitação",
+            detail="Licitação não encontrada"
         )
     
     return bid
-
-
-@router.patch("/{bid_id}/status", response_model=BidPublic)
-async def update_bid_status(
-    bid_id: UUID,
-    status_update: BidStatusUpdate = Body(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> Any:
-    """
-    # Atualizar o status de uma licitação
-    # Update the status of a bid
-    
-    Args:
-        bid_id: ID da licitação
-        status_update: Novo status
-        db: Sessão do banco de dados
-        current_user: Usuário atual obtido do token
-        
-    Returns:
-        Licitação atualizada
-    """
-    bid = await crud_bid.get(db, id=bid_id)
-    if not bid:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Licitação não encontrada",
-        )
-    
-    # Verificar se a licitação pertence ao usuário atual
-    # Check if the bid belongs to the current user
-    if bid.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso não autorizado a esta licitação",
-        )
-    
-    # Verificar se o status é válido
-    # Check if the status is valid
-    valid_statuses = ["novos", "em_analise", "pronto_para_assinar", "enviado", "ganhos", "perdidos"]
-    if status_update.status not in valid_statuses:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Status inválido. Deve ser um dos seguintes: {', '.join(valid_statuses)}",
-        )
-    
-    # Atualizar o status
-    # Update the status
-    bid = await crud_bid.update(db, db_obj=bid, obj_in={"status": status_update.status})
-    return bid
-
 
 @router.put("/{bid_id}", response_model=BidPublic)
 async def update_bid(
-    bid_id: UUID,
-    bid_in: BidUpdate = Body(...),
+    *,
     db: AsyncSession = Depends(get_db),
+    bid_id: UUID,
+    bid_in: BidUpdate,
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
-    # Atualizar detalhes de uma licitação
-    # Update details of a bid
-    
-    Args:
-        bid_id: ID da licitação
-        bid_in: Dados de atualização da licitação
-        db: Sessão do banco de dados
-        current_user: Usuário atual obtido do token
-        
-    Returns:
-        Licitação atualizada
+    # Atualizar uma licitação
+    # Update a bid
     """
-    bid = await crud_bid.get(db, id=bid_id)
+    # Buscar licitação
+    bid = await db.get(Bid, bid_id)
+    
     if not bid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Licitação não encontrada",
+            detail="Licitação não encontrada"
         )
     
-    # Verificar se a licitação pertence ao usuário atual
-    # Check if the bid belongs to the current user
-    if bid.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso não autorizado a esta licitação",
-        )
+    # Atualizar campos
+    bid_data = bid_in.model_dump(exclude_unset=True)
+    for field, value in bid_data.items():
+        setattr(bid, field, value)
     
-    # Atualizar a licitação
-    # Update the bid
-    bid = await crud_bid.update(db, db_obj=bid, obj_in=bid_in)
+    # Salvar alterações
+    db.add(bid)
+    await db.commit()
+    await db.refresh(bid)
+    
     return bid
 
-
-@router.post("/{bid_id}/sign", response_model=BidPublic)
-async def sign_bid(
-    bid_id: UUID,
-    sign_request: BidSignRequest = Body(...),
+@router.patch("/{bid_id}/status", response_model=BidPublic)
+async def update_bid_status(
+    *,
     db: AsyncSession = Depends(get_db),
+    bid_id: UUID,
+    status_update: BidStatusUpdate,
     current_user: User = Depends(get_current_user),
 ) -> Any:
     """
-    # Assinar uma licitação (requer confirmação de senha)
-    # Sign a bid (requires password confirmation)
-    
-    Args:
-        bid_id: ID da licitação
-        sign_request: Solicitação de assinatura com senha
-        db: Sessão do banco de dados
-        current_user: Usuário atual obtido do token
-        
-    Returns:
-        Licitação assinada e atualizada
+    # Atualizar o status de uma licitação (para Kanban)
+    # Update bid status (for Kanban)
     """
-    # Verificar a senha do usuário
-    # Verify the user's password
-    if not verify_password(sign_request.password, current_user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Senha incorreta",
-        )
+    # Buscar licitação
+    bid = await db.get(Bid, bid_id)
     
-    bid = await crud_bid.get(db, id=bid_id)
     if not bid:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Licitação não encontrada",
+            detail="Licitação não encontrada"
         )
     
-    # Verificar se a licitação pertence ao usuário atual
-    # Check if the bid belongs to the current user
-    if bid.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso não autorizado a esta licitação",
-        )
-    
-    # Verificar se a licitação está com o status correto para assinatura
-    # Check if the bid has the correct status for signing
-    if bid.status != "pronto_para_assinar":
+    # Validar status
+    valid_statuses = ['recebidos', 'analisados', 'enviados', 'respondidos', 'ganho', 'perdido']
+    if status_update.status not in valid_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Esta licitação não está pronta para ser assinada",
+            detail=f"Status inválido. Deve ser um dos: {', '.join(valid_statuses)}"
         )
     
-    # Atualizar o status para enviado
-    # Update the status to sent
-    bid = await crud_bid.update(db, db_obj=bid, obj_in={"status": "enviado"})
+    # Atualizar status
+    bid.status = status_update.status
+    bid.status_changed_at = datetime.now()
+    
+    # Salvar alterações
+    db.add(bid)
+    await db.commit()
+    await db.refresh(bid)
+    
     return bid
+
+@router.delete("/{bid_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_bid(
+    *,
+    db: AsyncSession = Depends(get_db),
+    bid_id: UUID,
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """
+    # Excluir uma licitação
+    # Delete a bid
+    """
+    # Buscar licitação
+    bid = await db.get(Bid, bid_id)
+    
+    if not bid:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Licitação não encontrada"
+        )
+    
+    # Excluir licitação
+    await db.delete(bid)
+    await db.commit()

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Copy, Check, Edit, Save } from 'lucide-react';
@@ -383,7 +382,7 @@ const EmpresaCard = ({ company }: { company: Company }) => {
  * Página de perfil do usuário
  */
 const PerfilPage = () => {
-  const { user } = useAuthStore();
+  const { user, updateProfile } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({
@@ -436,8 +435,11 @@ const PerfilPage = () => {
     setIsSaving(true);
     
     try {
-      // Simulação de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Atualizar o perfil usando a função do authStore
+      await updateProfile({
+        name: data.nome,
+        // Outros campos que correspondem ao modelo User
+      });
       
       const updatedProfile = {
         ...userProfile,
@@ -454,7 +456,7 @@ const PerfilPage = () => {
             <Check className="mr-2 h-4 w-4 text-green-500" />
             <span>Dados salvos</span>
           </div>
-        ),
+        ) as any,
         description: "Suas informações foram atualizadas com sucesso!",
       });
     } catch (error) {

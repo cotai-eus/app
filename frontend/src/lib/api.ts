@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
+import { trackError } from '@/providers/ErrorBoundary';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.example.com';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -21,23 +22,59 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    trackError(error, { type: 'api_request' });
     return Promise.reject(error);
   }
 );
+
+// Adicionar função para renovação de token
+export const refreshToken = async () => {
+  try {
+    const response = await axios.post(`${API_URL}/auth/refresh-token`, {}, {
+      headers: {
+        'Authorization': `Bearer ${useAuthStore.getState().token}`
+      }
+    });
+    
+    const { token, user } = response.data;
+    useAuthStore.getState().setToken(token, user);
+    return token;
+  } catch (error) {
+    useAuthStore.getState().logout();
+    throw error;
+  }
+};
 
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
-    const { response } = error;
+  async (error) => {
+    const { response, config } = error;
     
-    if (response && response.status === 401) {
-      // Token expired or invalid
-      useAuthStore.getState().logout();
-      useUIStore.getState().showToast('error', 'Sua sessão expirou. Por favor, faça login novamente.');
-      window.location.href = '/login';
+    // Track error with Sentry
+    trackError(error, { 
+      type: 'api_response', 
+      status: response?.status, 
+      url: response?.config?.url,
+      method: response?.config?.method
+    });
+    
+    // Add token refresh logic
+    if (response && response.status === 401 && !config._retry) {
+      config._retry = true;
+      try {
+        const newToken = await refreshToken();
+        config.headers.Authorization = `Bearer ${newToken}`;
+        return api(config);
+      } catch (refreshError) {
+        // Token refresh failed, logout
+        useAuthStore.getState().logout();
+        useUIStore.getState().showToast('error', 'Sua sessão expirou. Por favor, faça login novamente.');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
     }
     
     const errorMessage = response?.data?.message || 'Ocorreu um erro na requisição';
@@ -47,22 +84,23 @@ api.interceptors.response.use(
   }
 );
 
+// Adicionar método ao authStore para atualizar token
+useAuthStore.setState({
+  ...useAuthStore.getState(),
+  setToken: (token, user) => {
+    useAuthStore.setState({ token, user, isAuthenticated: true });
+  }
+});
+
 export default api;
 
 // API endpoints
 export const authAPI = {
-  login: (data: { email: string; password: string }) => 
-    api.post('/api/v1/auth/token', new URLSearchParams({
-      username: data.email, // API OAuth2 espera 'username' mesmo que seja email
-      password: data.password
-    }), {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      }
-    }),
-  register: (data: { username: string; email: string; password: string; full_name: string }) => 
-    api.post('/api/v1/auth/signup', data),
-  me: () => api.get('/api/v1/users/me'),
+  login: (data: { email: string; password: string }) => api.post('/auth/login', data),
+  register: (data: { name: string; email: string; password: string }) => api.post('/auth/register', data),
+  forgotPassword: (data: { email: string }) => api.post('/auth/forgot-password', data),
+  resetPassword: (data: { token: string; password: string }) => api.post('/auth/reset-password', data),
+  me: () => api.get('/auth/me'),
 };
 
 export const licitacoesAPI = {
@@ -102,4 +140,18 @@ export const calendarioAPI = {
   createEvent: (data: any) => api.post('/calendario/eventos', data),
   updateEvent: (id: string, data: any) => api.put(`/calendario/eventos/${id}`, data),
   deleteEvent: (id: string) => api.delete(`/calendario/eventos/${id}`),
+};
+
+// Adicionar endpoints para perfil
+export const profileAPI = {
+  update: (data: any) => api.put('/profile', data),
+  updateAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return api.post('/profile/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };

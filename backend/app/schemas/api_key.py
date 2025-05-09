@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,7 +18,7 @@ class ApiKeyCreate(ApiKeyBase):
     # Campos para criação de chave de API
     # Fields for API key creation
     """
-    pass
+    permissions: List[str]
 
 
 class ApiKeyCreateResponse(ApiKeyBase):
@@ -53,7 +53,8 @@ class ApiKeyPublic(ApiKeyBase):
     """
     key_id: UUID
     prefix: str
-    last_used_at: Optional[datetime] = None
+    permissions: List[str]
+    last_used: Optional[datetime] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

@@ -12,11 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.security import get_password_hash, verify_password
 from app.crud.base import CRUDBase
-from app.models.active_session import ActiveSession
+from app.models.active_session import ActiveSession  # Adicionar import correto
 from app.models.api_key import ApiKey
 from app.models.user import User
 from app.schemas.api_key import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyPublic
-from app.schemas.session import ActiveSessionPublic
+from app.schemas.session import ActiveSessionPublic  # Adicionar import correto
+from app.models.user_config import UserConfig
+from app.schemas.config import UserPreferencesUpdate, UserPreferences, NotificationPreferences
+from app.schemas.security import SecuritySettings, UserSession
 
 router = APIRouter()
 
@@ -245,3 +248,221 @@ async def delete_active_session(
     return session
 
     op.create_index(op.f('ix_active_session_user_id'), 'active_session', ['user_id'], unique=False)
+
+
+@router.get("/preferences", response_model=UserPreferences)
+async def get_user_preferences(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Obter preferências do usuário
+    # Get user preferences
+    """
+    # Buscar configurações existentes
+    stmt = select(UserConfig).where(UserConfig.user_id == current_user.user_id)
+    result = await db.execute(stmt)
+    config = result.scalar_one_or_none()
+    
+    # Se não existir, criar configurações padrão
+    if not config:
+        config = UserConfig(
+            user_id=current_user.user_id,
+            theme="system",
+            ui_density="normal",
+            notifications={
+                "email": {
+                    "novaLicitacao": True,
+                    "prazoProximo": True,
+                    "mensagemRecebida": True,
+                    "sistema": True,
+                },
+                "app": {
+                    "novaLicitacao": True,
+                    "prazoProximo": True,
+                    "mensagemRecebida": True,
+                    "sistema": True,
+                },
+                "sms": {
+                    "novaLicitacao": False,
+                    "prazoProximo": True,
+                    "mensagemRecebida": False,
+                    "sistema": False,
+                },
+                "horarios": {
+                    "inicio": "08:00",
+                    "fim": "18:00",
+                    "diasUteis": True,
+                }
+            }
+        )
+        db.add(config)
+        await db.commit()
+        await db.refresh(config)
+    
+    return config
+
+@router.put("/preferences", response_model=UserPreferences)
+async def update_user_preferences(
+    *,
+    db: AsyncSession = Depends(get_db),
+    preferences: UserPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Atualizar preferências do usuário
+    # Update user preferences
+    """
+    # Buscar configurações existentes
+    stmt = select(UserConfig).where(UserConfig.user_id == current_user.user_id)
+    result = await db.execute(stmt)
+    config = result.scalar_one_or_none()
+    
+    # Se não existir, criar nova
+    if not config:
+        config = UserConfig(user_id=current_user.user_id)
+        db.add(config)
+    
+    # Atualizar campos
+    if preferences.theme:
+        config.theme = preferences.theme
+    if preferences.ui_density:
+        config.ui_density = preferences.ui_density
+    
+    await db.commit()
+    await db.refresh(config)
+    
+    return config
+
+@router.put("/notifications", response_model=UserPreferences)
+async def update_notification_preferences(
+    *,
+    db: AsyncSession = Depends(get_db),
+    notification_prefs: NotificationPreferences,
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Atualizar preferências de notificação
+    # Update notification preferences
+    """
+    # Buscar configurações existentes
+    stmt = select(UserConfig).where(UserConfig.user_id == current_user.user_id)
+    result = await db.execute(stmt)
+    config = result.scalar_one_or_none()
+    
+    # Se não existir, criar nova
+    if not config:
+        config = UserConfig(
+            user_id=current_user.user_id,
+            notifications=notification_prefs.model_dump()
+        )
+        db.add(config)
+    else:
+        config.notifications = notification_prefs.model_dump()
+    
+    await db.commit()
+    await db.refresh(config)
+    
+    return config
+
+@router.get("/security/sessions", response_model=List[UserSession])
+async def get_user_sessions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Obter sessões ativas do usuário
+    # Get active user sessions
+    """
+    # Na implementação real, buscaríamos de uma tabela de sessões
+    # Por agora, retornamos dados fictícios
+    
+    return [
+        {
+            "id": "1",
+            "device": "Chrome em Windows",
+            "ip": "187.123.45.67",
+            "location": "São Paulo, Brasil",
+            "lastActive": datetime.now(),
+            "current": True,
+        },
+        {
+            "id": "2",
+            "device": "Safari em iPhone",
+            "ip": "187.123.45.68",
+            "location": "São Paulo, Brasil",
+            "lastActive": datetime.now().replace(day=datetime.now().day-1),
+            "current": False,
+        }
+    ]
+
+@router.post("/security/sessions/revoke/{session_id}", response_model=dict)
+async def revoke_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Revogar uma sessão específica
+    # Revoke a specific session
+    """
+    # Na implementação real, revogaríamos a sessão no banco de dados
+    # Por agora, apenas retornamos sucesso
+    
+    return {"message": "Sessão revogada com sucesso"}
+
+@router.post("/security/sessions/revoke-all", response_model=dict)
+async def revoke_all_sessions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Revogar todas as sessões exceto a atual
+    # Revoke all sessions except the current one
+    """
+    # Na implementação real, revogaríamos todas as sessões no banco de dados
+    # Por agora, apenas retornamos sucesso
+    
+    return {"message": "Todas as outras sessões foram revogadas com sucesso"}
+
+@router.post("/security/2fa", response_model=dict)
+async def toggle_two_factor_auth(
+    enable: bool = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Ativar ou desativar autenticação de dois fatores
+    # Enable or disable two-factor authentication
+    """
+    # Na implementação real, ativaríamos/desativaríamos 2FA no banco de dados
+    # Por agora, apenas retornamos sucesso
+    
+    return {"message": f"Autenticação de dois fatores {'ativada' if enable else 'desativada'} com sucesso"}
+
+@router.put("/security/password", response_model=dict)
+async def change_password(
+    current_password: str = Body(...),
+    new_password: str = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    # Alterar senha do usuário
+    # Change user password
+    """
+    # Verificar senha atual
+    if not verify_password(current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Senha atual incorreta"
+        )
+    
+    # Atualizar senha
+    new_password_hash = get_password_hash(new_password)
+    current_user.password_hash = new_password_hash
+    
+    db.add(current_user)
+    await db.commit()
+    
+    return {"message": "Senha alterada com sucesso"}

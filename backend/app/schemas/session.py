@@ -1,48 +1,24 @@
-from datetime import datetime
 from typing import Optional
 from uuid import UUID
-
-from pydantic import BaseModel, ConfigDict
-
+from datetime import datetime
+from pydantic import BaseModel
 
 class ActiveSessionBase(BaseModel):
-    """
-    # Campos base para sessão ativa
-    # Base fields for active session
-    """
+    """Esquema base para sessões ativas."""
     device_info: str
-    location: Optional[str] = None
     ip_address: str
 
-
 class ActiveSessionCreate(ActiveSessionBase):
-    """
-    # Campos para criação de sessão ativa
-    # Fields for active session creation
-    """
-    pass
+    """Esquema para criação de uma sessão ativa."""
+    user_id: UUID
 
-
-class ActiveSessionInDB(ActiveSessionBase):
-    """
-    # Modelo de sessão ativa no banco de dados
-    # Active session model in the database
-    """
+class ActiveSessionPublic(ActiveSessionBase):
+    """Esquema público para sessões ativas."""
     session_id: UUID
     user_id: UUID
     last_accessed_at: datetime
+    is_revoked: bool
     created_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ActiveSessionPublic(ActiveSessionBase):
-    """
-    # Modelo de sessão ativa para resposta pública
-    # Active session model for public response
-    """
-    session_id: UUID
-    last_accessed_at: datetime
-    created_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True

@@ -47,6 +47,21 @@ async def update_user_me(
     Returns:
         Informações atualizadas do usuário
     """
+    # Verificar se o email está sendo alterado e se já existe
+    if user_in.email and user_in.email != current_user.email:
+        user_by_email = await crud_user.get_by_email(db, email=user_in.email)
+        if user_by_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Este email já está em uso."
+            )
+    
+    # Atualizar avatar se fornecido
+    if hasattr(user_in, 'avatar_url') and user_in.avatar_url:
+        # Poderia integrar com um serviço de armazenamento como S3
+        # Por enquanto, apenas aceitamos o URL
+        pass
+        
     user = await crud_user.update(db, db_obj=current_user, obj_in=user_in)
     return user
 

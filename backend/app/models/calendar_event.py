@@ -1,32 +1,39 @@
-import uuid
-from datetime import datetime
 from typing import Optional
-
-from sqlalchemy import Boolean, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from uuid import UUID, uuid4
+from datetime import datetime
+from sqlalchemy import String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from app.db.base import Base
 
 class CalendarEvent(Base):
-    """
-    # Modelo para eventos de calendário
-    # Model for calendar events
-    """
-    event_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    start_time: Mapped[datetime] = mapped_column(nullable=False, index=True)
-    end_time: Mapped[datetime] = mapped_column(nullable=False)
-    type: Mapped[str] = mapped_column(String(50), nullable=False, default="other")  # deadline, meeting, visit, other
-    is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
+    """Modelo para eventos de calendário."""
     
-    # Relacionamentos
-    # Relationships
-    user: Mapped["User"] = relationship(back_populates="calendar_events")
+    __tablename__ = "calendar_event"
+    
+    event_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    startTime: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    endTime: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    type: Mapped[str] = mapped_column(
+        String(20), nullable=False, 
+        comment="Tipo: prazo, reuniao, licitacao, outro"
+    )
+    priority: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="media",
+        comment="Prioridade: baixa, media, alta"
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), 
+        ForeignKey("user.user_id", ondelete="CASCADE"),
+        nullable=False
+    )
+    
+    # Relacionamento
+    user = relationship("User", back_populates="calendar_events")
 

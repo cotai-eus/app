@@ -1,77 +1,46 @@
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Any, Optional
 from uuid import UUID
+from datetime import datetime
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, ConfigDict
-
-
+# Base schema
 class DocumentBase(BaseModel):
-    """
-    # Campos base para documento
-    # Base fields for document
-    """
-    file_name: str
-    content_type: str
+    """Esquema base para documentos/editais."""
+    title: str
+    description: Optional[str] = None
+    platform: str
+    document_type: str
+    document_number: str
+    entity: str
 
-
+# Create schema
 class DocumentCreate(DocumentBase):
-    """
-    # Campos para criação de documento
-    # Fields for document creation
-    """
-    file_path: str
-    size_bytes: int
-    processing_status: str = "pending"
+    """Esquema para criação de um documento/edital."""
+    pass
 
-
+# Update schema
 class DocumentUpdate(BaseModel):
-    """
-    # Campos para atualização de documento
-    # Fields for document update
-    """
-    processing_status: Optional[str] = None
-    extracted_text: Optional[str] = None
-    llm_analysis: Optional[Dict] = None
-    processed_at: Optional[datetime] = None
+    """Esquema para atualização de um documento/edital."""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    platform: Optional[str] = None
+    document_type: Optional[str] = None
+    document_number: Optional[str] = None
+    entity: Optional[str] = None
 
-
-class DocumentInDB(DocumentBase):
-    """
-    # Modelo de documento no banco de dados
-    # Document model in the database
-    """
-    document_id: UUID
-    user_id: UUID
-    file_path: str
-    size_bytes: int
-    processing_status: str
-    extracted_text: Optional[str] = None
-    llm_analysis: Optional[Dict] = None
-    processed_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
+# Public schema (response)
 class DocumentPublic(DocumentBase):
-    """
-    # Modelo de documento para resposta pública
-    # Document model for public response
-    """
+    """Esquema público para documentos/editais."""
     document_id: UUID
-    size_bytes: int
+    file_name: str
+    file_size: int
+    mime_type: str
     processing_status: str
     processed_at: Optional[datetime] = None
+    uploaded_by_id: UUID
+    related_bid_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
     
-    model_config = ConfigDict(from_attributes=True)
-
-
-class DocumentWithAnalysis(DocumentPublic):
-    """
-    # Modelo de documento com resultados da análise
-    # Document model with analysis results
-    """
-    llm_analysis: Optional[Dict] = None
+    class Config:
+        from_attributes = True

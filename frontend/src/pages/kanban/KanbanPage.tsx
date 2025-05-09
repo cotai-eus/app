@@ -2,9 +2,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, ArrowRight } from 'lucide-react';
+import { PasswordDialog } from '@/components/kanban/PasswordDialog';
+import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/store/authStore';
 
 interface Task {
   id: string;
@@ -21,8 +24,8 @@ interface Column {
 
 const initialColumns: Column[] = [
   {
-    id: 'backlog',
-    title: 'Backlog',
+    id: 'recebidos',
+    title: 'Recebidos',
     tasks: [
       { 
         id: 'task-1', 
@@ -36,16 +39,11 @@ const initialColumns: Column[] = [
         description: 'Preparar proposta técnica',
         dueDate: '2023-06-22'
       },
-      { 
-        id: 'task-3', 
-        title: 'Edital federal nº 12/2023', 
-        description: 'Análise inicial de viabilidade',
-      },
     ],
   },
   {
-    id: 'todo',
-    title: 'A Fazer',
+    id: 'analisados',
+    title: 'Analisados',
     tasks: [
       { 
         id: 'task-4', 
@@ -53,6 +51,12 @@ const initialColumns: Column[] = [
         description: 'Preparar documentação técnica',
         dueDate: '2023-07-01'
       },
+    ],
+  },
+  {
+    id: 'enviados',
+    title: 'Enviados',
+    tasks: [
       { 
         id: 'task-5', 
         title: 'Concorrência pública nº 23/2023', 
@@ -62,8 +66,8 @@ const initialColumns: Column[] = [
     ],
   },
   {
-    id: 'doing',
-    title: 'Em Progresso',
+    id: 'respondidos',
+    title: 'Respondidos',
     tasks: [
       { 
         id: 'task-6', 
@@ -74,15 +78,20 @@ const initialColumns: Column[] = [
     ],
   },
   {
-    id: 'done',
-    title: 'Concluído',
+    id: 'ganho',
+    title: 'Ganho',
     tasks: [
       { 
         id: 'task-7', 
         title: 'Licitação municipal nº 67/2023', 
-        description: 'Proposta enviada com sucesso',
+        description: 'Proposta aceita com sucesso',
       },
     ],
+  },
+  {
+    id: 'perdido',
+    title: 'Perdido',
+    tasks: [],
   },
 ];
 
@@ -91,6 +100,10 @@ const initialColumns: Column[] = [
  */
 const KanbanPage = () => {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const [selectedTask, setSelectedTask] = useState<{task: Task, sourceColumn: string, targetColumn: string} | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuthStore();
   
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -128,6 +141,66 @@ const KanbanPage = () => {
     }
     
     setColumns(newColumns);
+  };
+
+  const moveToNextColumn = (taskId: string, currentColumnId: string) => {
+    const currentColumnIndex = columns.findIndex(col => col.id === currentColumnId);
+    if (currentColumnIndex === columns.length - 1) return; // Already at the last column
+    
+    const nextColumnId = columns[currentColumnIndex + 1].id;
+    const currentColumn = columns[currentColumnIndex];
+    const nextColumn = columns[currentColumnIndex + 1];
+    
+    const taskIndex = currentColumn.tasks.findIndex(task => task.id === taskId);
+    if (taskIndex === -1) return;
+    
+    const task = currentColumn.tasks[taskIndex];
+    
+    setSelectedTask({
+      task,
+      sourceColumn: currentColumnId,
+      targetColumn: nextColumnId
+    });
+    setIsDialogOpen(true);
+  };
+  
+  const handlePasswordConfirmation = (password: string) => {
+    setIsDialogOpen(false);
+    
+    if (!selectedTask) return;
+    
+    // Mock password check - in production this should be a secure check
+    if (password === 'password') { // Using the mock password from authStore
+      const newColumns = [...columns];
+      
+      const sourceColIndex = newColumns.findIndex(col => col.id === selectedTask.sourceColumn);
+      const destColIndex = newColumns.findIndex(col => col.id === selectedTask.targetColumn);
+      
+      if (sourceColIndex === -1 || destColIndex === -1) return;
+      
+      const sourceCol = newColumns[sourceColIndex];
+      const destCol = newColumns[destColIndex];
+      
+      const taskIndex = sourceCol.tasks.findIndex(task => task.id === selectedTask.task.id);
+      if (taskIndex === -1) return;
+      
+      const [task] = sourceCol.tasks.splice(taskIndex, 1);
+      destCol.tasks.push(task);
+      
+      setColumns(newColumns);
+      toast({
+        title: "Tarefa movida com sucesso",
+        description: `${task.title} movido para ${destCol.title}.`,
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Senha incorreta",
+        description: "A senha fornecida está incorreta. Tente novamente.",
+      });
+    }
+    
+    setSelectedTask(null);
   };
 
   const container = {
@@ -168,7 +241,7 @@ const KanbanPage = () => {
       
       <motion.div variants={item} className="h-[calc(100vh-280px)]">
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 h-full">
             {columns.map(column => (
               <div key={column.id} className="flex flex-col h-full">
                 <div className="text-sm font-medium flex items-center justify-between mb-3">
@@ -209,6 +282,19 @@ const KanbanPage = () => {
                                     </div>
                                   )}
                                 </CardContent>
+                                {column.id !== 'perdido' && (
+                                  <CardFooter className="p-2 pt-0 flex justify-end">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-7 px-2 hover:bg-primary hover:text-primary-foreground"
+                                      onClick={() => moveToNextColumn(task.id, column.id)}
+                                    >
+                                      <ArrowRight className="h-3 w-3 mr-1" />
+                                      <span className="text-xs">Mover</span>
+                                    </Button>
+                                  </CardFooter>
+                                )}
                               </Card>
                             </div>
                           )}
@@ -223,9 +309,16 @@ const KanbanPage = () => {
           </div>
         </DragDropContext>
       </motion.div>
+      
+      <PasswordDialog 
+        open={isDialogOpen} 
+        onOpenChange={setIsDialogOpen}
+        onConfirm={handlePasswordConfirmation}
+        taskTitle={selectedTask?.task.title || ""}
+        targetColumn={columns.find(col => col.id === selectedTask?.targetColumn)?.title || ""}
+      />
     </motion.div>
   );
 };
 
 export default KanbanPage;
-

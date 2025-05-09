@@ -1,38 +1,35 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import axios from 'axios';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import CryptoJS from 'crypto-js';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const STORAGE_KEY = 'auth-storage';
+const ENCRYPTION_KEY = 'lovable-auth-secure-key'; // In production, use environment variables
 
-// At the top of your file
-console.log("API URL:", API_URL);
-
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add token to requests if available
-api.interceptors.request.use(
-  (config) => {
-    const token = JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.token;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+// Create secure storage with encryption
+const secureStorage = {
+  getItem: (name: string) => {
+    const persistedState = localStorage.getItem(name);
+    if (!persistedState) return null;
+    try {
+      const decrypted = CryptoJS.AES.decrypt(persistedState, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
+      return JSON.parse(decrypted);
+    } catch (error) {
+      console.error('Failed to decrypt auth state:', error);
+      return null;
     }
-    return config;
   },
-  (error) => Promise.reject(error)
-);
+  setItem: (name: string, value: string) => {
+    const encrypted = CryptoJS.AES.encrypt(value, ENCRYPTION_KEY).toString();
+    localStorage.setItem(name, encrypted);
+  },
+  removeItem: (name: string) => localStorage.removeItem(name),
+};
 
-interface User {
+export interface User {
   id: string;
   email: string;
-  username: string;
-  full_name?: string;
-  is_admin?: boolean;
-  is_active?: boolean;
+  name: string;
+  role: 'admin' | 'user';
 }
 
 interface AuthState {
@@ -42,14 +39,17 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: { username: string; email: string; password: string; full_name: string }) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   clearError: () => void;
+  updateProfile: (userData: Partial<User>) => Promise<void>; // Nova função
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -59,132 +59,41 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-          console.log('Attempting login:', { email });
+          // Mock API call - in a real app, this would be an API call
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // This endpoint should match your FastAPI backend
-          const response = await api.post('/api/v1/auth/login/access-token', 
-            new URLSearchParams({
-              username: email,
-              password,
-            }),
-            {
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-              },
-            }
-          );
-          
-          const { access_token } = response.data;
-          console.log('Login successful, token received');
-          
-          // Get user data with the token
-          const userResponse = await api.get('/api/v1/users/me', {
-            headers: {
-              Authorization: `Bearer ${access_token}`
-            }
-          });
-          
-          console.log('User data retrieved:', userResponse.data);
-          
-          set({ 
-            user: userResponse.data, 
-            token: access_token, 
-            isAuthenticated: true, 
-            isLoading: false 
-          });
+          if (email === 'admin@example.com' && password === 'password') {
+            const user = { id: '1', email, name: 'Admin User', role: 'admin' as const };
+            const token = 'mock-jwt-token';
+            set({ user, token, isAuthenticated: true, isLoading: false });
+          } else if (email === 'user@example.com' && password === 'password') {
+            const user = { id: '2', email, name: 'Regular User', role: 'user' as const };
+            const token = 'mock-jwt-token';
+            set({ user, token, isAuthenticated: true, isLoading: false });
+          } else {
+            throw new Error('Credenciais inválidas');
+          }
         } catch (error) {
-          console.error("Login error:", error.response || error);
-          set({ 
-            error: error.response?.data?.detail || 'Credenciais inválidas', 
-            isLoading: false 
-          });
-          throw error;
+          set({ error: error instanceof Error ? error.message : 'Erro ao fazer login', isLoading: false });
         }
       },
       
-      register: async (userData) => {
+      register: async (email, password, name) => {
         set({ isLoading: true, error: null });
         try {
-          console.log('Attempting registration:', userData);
+          // Mock API call - in a real app, this would be an API call
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // Adjust payload format if necessary to match backend expectations
-          const registrationData = {
-            email: userData.email,
-            password: userData.password,
-            username: userData.username,
-            full_name: userData.full_name,
-            // Add any other required fields
-          };
-          
-          // Try one of these endpoints
-          await api.post('/api/v1/auth/signup', registrationData);
-          // or
-          // await api.post('/api/v1/auth/register', registrationData);
-          // or 
-          // await api.post('/api/v1/users/', registrationData);
-          
-          console.log('Registration successful, now logging in');
-          
-          // Login automatically after successful registration
-          const loginResponse = await api.post('/api/v1/auth/login/access-token', 
-            new URLSearchParams({
-              username: userData.email,
-              password: userData.password,
-            }),
-            {
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-              },
-            }
-          );
-          
-          const { access_token } = loginResponse.data;
-          console.log('Login successful, token received');
-          
-          // Get user data
-          const userResponse = await api.get('/api/v1/users/me', {
-            headers: {
-              Authorization: `Bearer ${access_token}`
-            }
-          });
-          
-          console.log('User data retrieved:', userResponse.data);
-          
-          set({ 
-            user: userResponse.data, 
-            token: access_token, 
-            isAuthenticated: true,
-            isLoading: false 
-          });
-        } catch (error) {
-          console.error("Registration error:", error);
-          
-          // Log detailed error information
-          if (error.response) {
-            // The request was made and the server responded with an error status
-            console.error("Error response:", {
-              data: error.response.data,
-              status: error.response.status,
-              headers: error.response.headers
-            });
-            
-            // If backend returns validation errors, they may be in data.detail or another format
-            const errorMessage = typeof error.response.data === 'object' ? 
-              JSON.stringify(error.response.data) : 
-              error.response.data?.detail || 'Erro ao registrar. Verifique os dados e tente novamente.';
-            
-            set({ error: errorMessage, isLoading: false });
-          } else if (error.request) {
-            // The request was made but no response was received
-            console.error("No response received:", error.request);
-            set({ error: "Servidor não respondeu. Verifique sua conexão.", isLoading: false });
+          // Simulate successful registration
+          if (email && password && name) {
+            const user = { id: '3', email, name, role: 'user' as const };
+            const token = 'mock-jwt-token';
+            set({ user, token, isAuthenticated: true, isLoading: false });
           } else {
-            // Something happened in setting up the request
-            console.error("Request setup error:", error.message);
-            set({ error: "Erro ao configurar requisição: " + error.message, isLoading: false });
+            throw new Error('Campos inválidos');
           }
-          
-          throw error;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Erro ao registrar', isLoading: false });
         }
       },
       
@@ -192,12 +101,54 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, token: null, isAuthenticated: false });
       },
       
+      forgotPassword: async (email) => {
+        set({ isLoading: true, error: null });
+        try {
+          // Mock API call
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          set({ isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Erro ao recuperar senha', isLoading: false });
+        }
+      },
+      
+      resetPassword: async (token, password) => {
+        set({ isLoading: true, error: null });
+        try {
+          // Mock API call
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          set({ isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Erro ao redefinir senha', isLoading: false });
+        }
+      },
+      
       clearError: () => {
         set({ error: null });
       },
+
+      updateProfile: async (userData) => {
+        set({ isLoading: true, error: null });
+        try {
+          // Mock API call - in a real app, this would be an API call
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const currentUser = get().user;
+          if (!currentUser) {
+            throw new Error('Usuário não autenticado');
+          }
+          
+          // Update user with new data
+          const updatedUser = { ...currentUser, ...userData };
+          set({ user: updatedUser, isLoading: false });
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Erro ao atualizar perfil', isLoading: false });
+        }
+      },
     }),
     {
-      name: 'auth-storage',
+      name: STORAGE_KEY,
+      storage: createJSONStorage(() => secureStorage),
       partialize: (state) => ({ 
         user: state.user, 
         token: state.token, 

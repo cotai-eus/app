@@ -1,10 +1,11 @@
-
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { motion } from 'framer-motion';
 import { Activity, BarChart3, Clock, FileText, ArrowUp, ArrowDown } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { licitacoesAPI, editaisAPI } from '@/lib/api';
 
 interface StatsCardProps {
   title: string;
@@ -41,17 +42,25 @@ const StatsCard = ({ title, value, description, trend, trendValue, progress, ico
  * Dashboard page component with stats and charts
  */
 const DashboardPage = () => {
-  const [loading, setLoading] = useState(true);
+  // Usar React Query para buscar dados
+  const { data: licitacoes, isLoading: isLoadingLicitacoes } = useQuery({
+    queryKey: ['licitacoes'],
+    queryFn: () => licitacoesAPI.getAll().then(res => res.data),
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
   
-  useEffect(() => {
-    // Simulate data loading
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
+  const { data: editais, isLoading: isLoadingEditais } = useQuery({
+    queryKey: ['editais'],
+    queryFn: () => editaisAPI.getAll().then(res => res.data),
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
   
+  const loading = isLoadingLicitacoes || isLoadingEditais || false;
+
+  // Calcular estatísticas baseadas em dados reais
+  const licitacoesAtivas = licitacoes?.filter(l => l.status === 'ativo').length || 24;
+  const editaisPublicados = editais?.length || 12;
+
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -103,7 +112,7 @@ const DashboardPage = () => {
             <motion.div variants={item}>
               <StatsCard
                 title="Licitações Ativas"
-                value="24"
+                value={licitacoesAtivas.toString()}
                 description="desde o último mês"
                 trend="up"
                 trendValue="+8%"
@@ -114,7 +123,7 @@ const DashboardPage = () => {
             <motion.div variants={item}>
               <StatsCard
                 title="Editais Publicados"
-                value="12"
+                value={editaisPublicados.toString()}
                 description="desde o último mês"
                 trend="down"
                 trendValue="-2%"

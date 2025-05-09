@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
+import uuid
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -34,11 +35,51 @@ def create_access_token(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     
-    to_encode = {"exp": expire, "sub": str(subject)}
+    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
     return encoded_jwt
+
+
+def create_refresh_token(
+    subject: Union[str, Any], expires_delta: Optional[timedelta] = None
+) -> str:
+    """
+    Cria um token JWT de refresh para o usuário.
+    """
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
+    to_encode = {
+        "exp": expire, 
+        "sub": str(subject), 
+        "type": "refresh",
+        "jti": str(uuid.uuid4()) # ID único do token para possibilitar revogação
+    }
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+
+def verify_refresh_token(token: str) -> Optional[str]:
+    """
+    Verifica um token de refresh e retorna o user_id se válido.
+    """
+    try:
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        if payload.get("type") != "refresh":
+            return None
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+        return user_id
+    except jwt.JWTError:
+        return None
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

@@ -94,13 +94,36 @@ app = FastAPI(
 # --- Middlewares ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost"],
+    allow_origins=[
+        "http://localhost:5173",  # React development server
+        "http://localhost:3000",
+        "http://localhost",
+        # Add production domains
+        "https://app.licithub.com",
+        "https://api.licithub.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  # For file downloads
 )
 
 app.add_middleware(RequestLoggingMiddleware)
+
+# Middleware de segurança
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Adicionar cabeçalhos de segurança
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    
+    return response
 
 # --- Roteadores da API ---
 app.include_router(api_router, prefix=settings.API_V1_STR)

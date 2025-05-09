@@ -1,12 +1,28 @@
-import { useEffect, useContext } from 'react';
+
+import { useEffect, createContext, useContext } from 'react';
 import { useThemeStore } from '@/store/themeStore';
-import { useTheme } from "next-themes"; // or from your actual theme provider
+
+// Create a context for theme
+const ThemeContext = createContext<{
+  theme: 'light' | 'dark' | 'system';
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+}>({
+  theme: 'system',
+  setTheme: () => {},
+});
+
+/**
+ * Custom hook to access theme context
+ */
+export const useTheme = () => {
+  return useContext(ThemeContext);
+};
 
 /**
  * Theme provider component that manages the application's theme
  */
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const { theme } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
   
   useEffect(() => {
     const root = window.document.documentElement;
@@ -21,14 +37,9 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [theme]);
   
-  return <>{children}</>;
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 };
-
-// Create and export the hook
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-  return context;
-}

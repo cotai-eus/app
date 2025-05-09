@@ -16,11 +16,28 @@ import { FileText, Upload, Download, Eye, Search, Plus, Trash2 } from 'lucide-re
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 
+const platforms = [
+  'Gov.br',
+  'BEC-SP',
+  'Banco do Brasil',
+  'Caixa Econômica Federal',
+  'Licitações do RJ',
+  'Compras MG',
+  'Compras PR',
+  'Compras BA',
+  'Compras SC',
+  'Compras RS',
+  'Compras CE',
+  'Petrobras',
+  'Compras MT',
+  'Compras MS',
+];
+
 const editaisFormSchema = z.object({
-  title: z.string().min(5, { message: 'O título deve ter pelo menos 5 caracteres' }),
+  platform: z.string().min(1, { message: 'Selecione uma plataforma' }),
   type: z.string().min(1, { message: 'Selecione um tipo de edital' }),
   number: z.string().min(1, { message: 'O número é obrigatório' }),
-  entity: z.string().min(3, { message: 'A entidade deve ter pelo menos 3 caracteres' }),
+  entity: z.string().min(3, { message: 'O órgão deve ter pelo menos 3 caracteres' }),
   description: z.string().optional(),
   file: z.instanceof(File).optional(),
 });
@@ -29,7 +46,7 @@ type EditaisFormValues = z.infer<typeof editaisFormSchema>;
 
 interface Edital {
   id: string;
-  title: string;
+  platform: string;
   type: string;
   number: string;
   entity: string;
@@ -41,7 +58,7 @@ interface Edital {
 const mockEditais: Edital[] = [
   {
     id: '1',
-    title: 'Aquisição de Equipamentos de TI',
+    platform: 'Gov.br',
     type: 'Pregão Eletrônico',
     number: '001/2023',
     entity: 'Prefeitura Municipal de São Paulo',
@@ -50,7 +67,7 @@ const mockEditais: Edital[] = [
   },
   {
     id: '2',
-    title: 'Serviços de Manutenção Predial',
+    platform: 'BEC-SP',
     type: 'Tomada de Preços',
     number: '045/2023',
     entity: 'Governo do Estado',
@@ -59,7 +76,7 @@ const mockEditais: Edital[] = [
   },
   {
     id: '3',
-    title: 'Fornecimento de Material Hospitalar',
+    platform: 'Banco do Brasil',
     type: 'Concorrência',
     number: '023/2023',
     entity: 'Secretaria de Saúde',
@@ -80,7 +97,7 @@ const EditaisPage = () => {
   const form = useForm<EditaisFormValues>({
     resolver: zodResolver(editaisFormSchema),
     defaultValues: {
-      title: '',
+      platform: '',
       type: '',
       number: '',
       entity: '',
@@ -89,7 +106,7 @@ const EditaisPage = () => {
   });
 
   const filteredEditais = editais.filter(edital => 
-    edital.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    edital.platform.toLowerCase().includes(searchTerm.toLowerCase()) ||
     edital.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
     edital.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
     edital.type.toLowerCase().includes(searchTerm.toLowerCase())
@@ -104,7 +121,7 @@ const EditaisPage = () => {
       
       const newEdital: Edital = {
         id: Math.random().toString(36).substring(2, 9),
-        title: data.title,
+        platform: data.platform,
         type: data.type,
         number: data.number,
         entity: data.entity,
@@ -214,13 +231,24 @@ const EditaisPage = () => {
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <FormField
                       control={form.control}
-                      name="title"
+                      name="platform"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Título</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Título do edital" {...field} />
-                          </FormControl>
+                          <FormLabel>Plataforma</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a plataforma" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {platforms.map((platform) => (
+                                <SelectItem key={platform} value={platform}>
+                                  {platform}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -272,9 +300,9 @@ const EditaisPage = () => {
                       name="entity"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Entidade</FormLabel>
+                          <FormLabel>Órgão</FormLabel>
                           <FormControl>
-                            <Input placeholder="Nome da entidade" {...field} />
+                            <Input placeholder="Nome do órgão" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -342,10 +370,10 @@ const EditaisPage = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Título</TableHead>
+                      <TableHead>Plataforma</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Número</TableHead>
-                      <TableHead>Entidade</TableHead>
+                      <TableHead>Órgão</TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -361,7 +389,7 @@ const EditaisPage = () => {
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.2 }}
                           >
-                            <TableCell className="font-medium">{edital.title}</TableCell>
+                            <TableCell className="font-medium">{edital.platform}</TableCell>
                             <TableCell>{edital.type}</TableCell>
                             <TableCell>{edital.number}</TableCell>
                             <TableCell>{edital.entity}</TableCell>

@@ -1,41 +1,49 @@
-import uuid
+from typing import Optional, Dict, Any
+from uuid import UUID, uuid4
 from datetime import datetime
-from typing import Optional
-
-from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import String, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from app.db.base import Base
 
 class Bid(Base):
-    """
-    # Modelo para licitações/editais
-    # Model for bids/tenders
-    """
-    bid_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    """Modelo para licitações."""
+    
+    __tablename__ = "bid"
+    
+    bid_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), primary_key=True, default=uuid4
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.user_id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    internal_code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    title: Mapped[str] = mapped_column(Text, nullable=False)
-    organization: Mapped[str] = mapped_column(String(255), nullable=False)
-    number: Mapped[str] = mapped_column(String(100), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    ua: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    publication_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    deadline_date: Mapped[datetime] = mapped_column(nullable=False, index=True)
+    number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    organization: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    publication_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    deadline_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     status: Mapped[str] = mapped_column(
-        String(50), nullable=False, index=True, default="novos"
-    )  # novos, em_analise, pronto_para_assinar, enviado, ganhos, perdidos
-    source_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("document.document_id", ondelete="SET NULL"), nullable=True
+        String(20), nullable=False, default="recebidos", index=True,
+        comment="Status: recebidos, analisados, enviados, respondidos, ganho, perdido"
     )
-    analysis_result: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    status_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.now
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), 
+        ForeignKey("user.user_id", ondelete="CASCADE"),
+        nullable=False
+    )
+    source_document_id: Mapped[Optional[UUID]] = mapped_column(
+        PostgresUUID(as_uuid=True), 
+        ForeignKey("document.document_id", ondelete="SET NULL"),
+        nullable=True
+    )
+    analysis_result: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON, nullable=True,
+        comment="Resultado da análise realizada por IA"
+    )
     
     # Relacionamentos
-    # Relationships
-    user: Mapped["User"] = relationship(back_populates="bids")
-    source_document: Mapped[Optional["Document"]] = relationship(back_populates="bids")
+    user = relationship("User", back_populates="bids")
+    source_document = relationship("Document", back_populates="bids")
+    documents = relationship("Document", back_populates="related_bid", foreign_keys="Document.related_bid_id")

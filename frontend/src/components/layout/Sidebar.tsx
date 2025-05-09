@@ -2,12 +2,15 @@
 import { FC } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, KanbanSquare, FileText, Mail, Calendar, LogOut, User, Settings } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, FileText, Mail, Calendar, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuthStore } from '@/store/authStore';
+import { useAuth } from '@/hooks/useAuth';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/button';
 import { SheetContent } from '@/components/ui/sheet';
+import { useI18n } from '@/hooks/useI18n';
+import { PermissionGate } from '@/components/auth/PermissionGate';
+import { trackEvent } from '@/providers/ErrorBoundary';
 
 interface NavItemProps {
   href: string;
@@ -15,6 +18,7 @@ interface NavItemProps {
   icon: JSX.Element;
   isActive: boolean;
   onClick?: () => void;
+  permission?: string;
 }
 
 interface SidebarProps {
@@ -55,8 +59,9 @@ const NavItem: FC<NavItemProps> = ({ href, label, icon, isActive, onClick }) => 
  */
 export const Sidebar: FC<SidebarProps> = ({ isMobile = false }) => {
   const location = useLocation();
-  const { logout } = useAuthStore();
+  const { logout } = useAuth();
   const { setSidebarOpen } = useUIStore();
+  const { t } = useI18n();
   
   const isActive = (path: string) => location.pathname === path;
   
@@ -64,6 +69,9 @@ export const Sidebar: FC<SidebarProps> = ({ isMobile = false }) => {
     if (isMobile) {
       setSidebarOpen(false);
     }
+    
+    // Track navigation events
+    trackEvent('navigation', { path: location.pathname });
   };
   
   const handleLogout = () => {
@@ -79,53 +87,51 @@ export const Sidebar: FC<SidebarProps> = ({ isMobile = false }) => {
         <nav className="space-y-1">
           <NavItem
             href="/app/dashboard"
-            label="Dashboard"
+            label={t('nav.dashboard')}
             icon={<LayoutDashboard size={18} />}
             isActive={isActive('/app/dashboard')}
             onClick={handleItemClick}
           />
-          <NavItem
-            href="/app/kanban"
-            label="Kanban"
-            icon={<KanbanSquare size={18} />}
-            isActive={isActive('/app/kanban')}
-            onClick={handleItemClick}
-          />
-          <NavItem
-            href="/app/editais"
-            label="Editais"
-            icon={<FileText size={18} />}
-            isActive={isActive('/app/editais')}
-            onClick={handleItemClick}
-          />
-          <NavItem
-            href="/app/mensagens"
-            label="Mensagens"
-            icon={<Mail size={18} />}
-            isActive={isActive('/app/mensagens')}
-            onClick={handleItemClick}
-          />
-          <NavItem
-            href="/app/calendario"
-            label="Calendário"
-            icon={<Calendar size={18} />}
-            isActive={isActive('/app/calendario')}
-            onClick={handleItemClick}
-          />
-          <NavItem
-            href="/app/perfil"
-            label="Perfil"
-            icon={<User size={18} />}
-            isActive={isActive('/app/perfil')}
-            onClick={handleItemClick}
-          />
-          <NavItem
-            href="/app/configuracoes"
-            label="Configurações"
-            icon={<Settings size={18} />}
-            isActive={isActive('/app/configuracoes')}
-            onClick={handleItemClick}
-          />
+          
+          <PermissionGate permissions={['kanban:view']}>
+            <NavItem
+              href="/app/kanban"
+              label={t('nav.kanban')}
+              icon={<KanbanSquare size={18} />}
+              isActive={isActive('/app/kanban')}
+              onClick={handleItemClick}
+            />
+          </PermissionGate>
+          
+          <PermissionGate permissions={['editais:view']}>
+            <NavItem
+              href="/app/editais"
+              label={t('nav.editais')}
+              icon={<FileText size={18} />}
+              isActive={isActive('/app/editais')}
+              onClick={handleItemClick}
+            />
+          </PermissionGate>
+          
+          <PermissionGate permissions={['mensagens:view']}>
+            <NavItem
+              href="/app/mensagens"
+              label={t('nav.mensagens')}
+              icon={<Mail size={18} />}
+              isActive={isActive('/app/mensagens')}
+              onClick={handleItemClick}
+            />
+          </PermissionGate>
+          
+          <PermissionGate permissions={['calendario:view']}>
+            <NavItem
+              href="/app/calendario"
+              label={t('nav.calendario')}
+              icon={<Calendar size={18} />}
+              isActive={isActive('/app/calendario')}
+              onClick={handleItemClick}
+            />
+          </PermissionGate>
         </nav>
       </div>
       
@@ -136,7 +142,7 @@ export const Sidebar: FC<SidebarProps> = ({ isMobile = false }) => {
           onClick={handleLogout}
         >
           <LogOut size={18} />
-          <span>Sair</span>
+          <span>{t('auth.logout')}</span>
         </Button>
       </div>
     </div>
