@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -6,35 +6,48 @@ from pydantic import BaseModel, Field
 # Base schema
 class CalendarEventBase(BaseModel):
     """Esquema base para eventos de calendário."""
-    title: str = Field(..., example="Prazo final para submissão de documentos")
-    description: Optional[str] = Field(None, example="Entrega de documentação para o pregão eletrônico nº 56/2023")
-    date: datetime = Field(..., example="2023-07-15T00:00:00Z")
-    startTime: Optional[str] = Field(None, example="14:00", pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$")
-    endTime: Optional[str] = Field(None, example="15:30", pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$")
-    type: str = Field(..., example="prazo", description="prazo, reuniao, licitacao, outro")
-    priority: str = Field("media", example="alta", description="baixa, media, alta")
+    title: str
+    description: Optional[str] = None
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    all_day: bool = False
+    location: Optional[str] = None
+    event_type: Optional[str] = None
 
 # Create schema
 class CalendarEventCreate(CalendarEventBase):
-    """Esquema para criação de um evento."""
+    """Esquema para criação de um evento de calendário."""
     pass
 
 # Update schema
 class CalendarEventUpdate(BaseModel):
-    """Esquema para atualização de um evento."""
+    """Esquema para atualização de um evento de calendário."""
     title: Optional[str] = None
     description: Optional[str] = None
-    date: Optional[datetime] = None
-    startTime: Optional[str] = None
-    endTime: Optional[str] = None
-    type: Optional[str] = None
-    priority: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    all_day: Optional[bool] = None
+    location: Optional[str] = None
+    event_type: Optional[str] = None
+
+# Database schema - The missing class that's causing the error
+class CalendarEventInDB(CalendarEventBase):
+    """Esquema para eventos de calendário armazenados no banco de dados."""
+    event_id: UUID
+    user_id: UUID
+    bid_id: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
 
 # Public schema (response)
 class CalendarEventPublic(CalendarEventBase):
     """Esquema público para eventos de calendário."""
     event_id: UUID
     user_id: UUID
+    bid_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
     

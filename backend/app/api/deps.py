@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.api_key import ApiKey
 from app.schemas.token import TokenPayload
 
+
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/auth/login"
 )
@@ -71,9 +72,13 @@ async def get_current_admin_user(
     """Check if the current user is an admin."""
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Not enough permissions"
         )
     return current_user
+
+# Alias for backward compatibility
+get_current_active_admin = get_current_admin_user
 
 async def get_api_key_user(
     db: AsyncSession = Depends(get_db),

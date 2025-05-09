@@ -3,6 +3,7 @@ from typing import Any, List
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Import directly from app.api.deps instead of using the bridge
 from app.api.deps import get_current_admin_user, get_current_user, get_db
 from app.crud.crud_user import user as crud_user
 from app.models.user import User

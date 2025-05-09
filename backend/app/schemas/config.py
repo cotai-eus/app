@@ -1,36 +1,39 @@
-from typing import Dict, Any, Optional
-from uuid import UUID
+from datetime import datetime  # Import datetime correctly
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
+from uuid import UUID
 
-class NotificationEvent(BaseModel):
-    novaLicitacao: bool = True
-    prazoProximo: bool = True
-    mensagemRecebida: bool = True
-    sistema: bool = True
-
-class NotificationSchedule(BaseModel):
-    inicio: str = Field("08:00", pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$")
-    fim: str = Field("18:00", pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$")
-    diasUteis: bool = True
-
+# Schema for notification preferences
 class NotificationPreferences(BaseModel):
-    email: NotificationEvent
-    app: NotificationEvent
-    sms: NotificationEvent
-    horarios: NotificationSchedule
+    """Esquema para preferências de notificação."""
+    email_notifications: bool = True
+    push_notifications: bool = True
+    sms_notifications: bool = False
+    notification_frequency: str = "daily"  # daily, weekly, immediate
+    
+    class Config:
+        from_attributes = True
 
-class UserPreferencesUpdate(BaseModel):
-    theme: Optional[str] = Field(None, description="light, dark, system")
-    ui_density: Optional[str] = Field(None, description="compact, normal, comfortable")
-
+# Schema for user preferences
 class UserPreferences(BaseModel):
-    config_id: UUID
+    """Esquema para preferências do usuário."""
     user_id: UUID
-    theme: str = "system"
-    ui_density: str = "normal"
-    notifications: Optional[Dict[str, Any]] = None
-    created_at: datetime
-    updated_at: datetime
+    theme: str = "light"
+    language: str = "pt-BR"
+    notifications: NotificationPreferences
+    created_at: datetime  # This will now work
+    updated_at: datetime  # This will now work
+    
+    class Config:
+        from_attributes = True
+
+# Schema for updating user preferences
+class UserPreferencesUpdate(BaseModel):
+    """Esquema para atualização das preferências do usuário."""
+    theme: Optional[str] = None
+    language: Optional[str] = None
+    notifications_enabled: Optional[bool] = None
+    email_notifications: Optional[bool] = None
     
     class Config:
         from_attributes = True

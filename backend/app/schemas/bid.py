@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field
 
 # Base schema
 class BidBase(BaseModel):
-    """Esquema base para licitações."""
+#    """Esquema base para licitações."""
+    id: int
     title: str
     description: Optional[str] = None
     number: Optional[str] = None
@@ -35,6 +36,20 @@ class BidStatusUpdate(BaseModel):
     """Esquema para atualização de status de uma licitação."""
     status: str = Field(..., description="recebidos, analisados, enviados, respondidos, ganho, perdido")
 
+# Database schema
+class BidInDB(BidBase):
+    """Esquema para licitações armazenadas no banco de dados."""
+    bid_id: UUID
+    user_id: UUID
+    source_document_id: Optional[UUID] = None
+    status_changed_at: datetime
+    analysis_result: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 # Public schema (response)
 class BidPublic(BidBase):
     """Esquema público para licitações."""
@@ -45,6 +60,18 @@ class BidPublic(BidBase):
     analysis_result: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Bid Sign Request schema
+class BidSignRequest(BaseModel):
+    """Esquema para solicitação de assinatura de licitação."""
+    bid_id: UUID
+    document_id: UUID
+    signature_type: str = Field(..., description="digital, eletronica")
+    requester_id: UUID
+    notes: Optional[str] = None
     
     class Config:
         from_attributes = True

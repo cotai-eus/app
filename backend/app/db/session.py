@@ -24,6 +24,9 @@ AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=F
 # Adicione este alias para compatibilidade com código existente
 async_session_maker = AsyncSessionLocal
 
+# Create a synchronous SessionLocal if needed
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
